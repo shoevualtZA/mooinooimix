@@ -1230,6 +1230,8 @@ function filterCategory(category) {
     const productsGrid = document.getElementById('products-grid');
     const businessGrid = document.getElementById('business-grid');
     const locationMapView = document.getElementById('location-map-view');
+    const hallMonitorView = document.getElementById('hall-monitor-view');
+    const speedCopMapView = document.getElementById('speedcop-map-view');
     
     mainMenu.style.display = 'none';
     mainHeader.style.display = 'none';
@@ -1239,6 +1241,8 @@ function filterCategory(category) {
         productsGrid.style.display = 'none';
         businessGrid.style.display = 'none';
         locationMapView.style.display = 'block';
+        hallMonitorView.style.display = 'none';
+        speedCopMapView.style.display = 'none';
         initLocationMainMap();
     } else if (category === 'business') {
         categoryHeader.style.display = 'block';
@@ -1246,13 +1250,25 @@ function filterCategory(category) {
         productsGrid.style.display = 'none';
         businessGrid.style.display = 'grid';
         locationMapView.style.display = 'none';
+        hallMonitorView.style.display = 'none';
+        speedCopMapView.style.display = 'none';
         loadBusinesses();
+    } else if (category === 'hall-monitor') {
+        categoryHeader.style.display = 'block';
+        addBtn.style.display = 'none';
+        productsGrid.style.display = 'none';
+        businessGrid.style.display = 'none';
+        locationMapView.style.display = 'none';
+        hallMonitorView.style.display = 'block';
+        speedCopMapView.style.display = 'none';
     } else {
         categoryHeader.style.display = 'block';
         addBtn.textContent = '+ Add Product';
         productsGrid.style.display = 'grid';
         businessGrid.style.display = 'none';
         locationMapView.style.display = 'none';
+        hallMonitorView.style.display = 'none';
+        speedCopMapView.style.display = 'none';
         loadProducts();
     }
 }
@@ -1265,6 +1281,8 @@ function showMainMenu() {
     const productsGrid = document.getElementById('products-grid');
     const businessGrid = document.getElementById('business-grid');
     const locationMapView = document.getElementById('location-map-view');
+    const hallMonitorView = document.getElementById('hall-monitor-view');
+    const speedCopMapView = document.getElementById('speedcop-map-view');
     
     mainMenu.style.display = 'grid';
     mainHeader.style.display = 'flex';
@@ -1272,6 +1290,8 @@ function showMainMenu() {
     productsGrid.style.display = 'none';
     businessGrid.style.display = 'none';
     locationMapView.style.display = 'none';
+    hallMonitorView.style.display = 'none';
+    speedCopMapView.style.display = 'none';
     
     currentCategory = 'menu';
 }
@@ -1318,12 +1338,15 @@ function showSettingsTab(tab) {
     
     // Show/hide content
     document.getElementById('my-posts-tab').style.display = tab === 'my-posts' ? 'block' : 'none';
+    document.getElementById('my-businesses-tab').style.display = tab === 'my-businesses' ? 'block' : 'none';
     document.getElementById('bookmarks-tab').style.display = tab === 'bookmarks' ? 'block' : 'none';
     document.getElementById('contact-info-tab').style.display = tab === 'contact-info' ? 'block' : 'none';
     document.getElementById('reviews-tab').style.display = tab === 'reviews' ? 'block' : 'none';
     
     if (tab === 'my-posts') {
         loadUserPosts();
+    } else if (tab === 'my-businesses') {
+        loadUserBusinesses();
     } else if (tab === 'bookmarks') {
         loadBookmarks();
     } else if (tab === 'contact-info') {
@@ -1390,6 +1413,78 @@ function createUserProductCard(product) {
         <div class="product-footer">
             <span class="product-category">${escapeHtml(product.category)}</span>
             <button class="btn-delete" onclick="deleteMyProduct('${product.id}', '${escapeHtml(product.name)}')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    <line x1="10" y1="11" x2="10" y2="17"></line>
+                    <line x1="14" y1="11" x2="14" y2="17"></line>
+                </svg>
+                Delete
+            </button>
+        </div>
+    `;
+    
+    return card;
+}
+
+function loadUserBusinesses() {
+    if (!currentUser) return;
+    
+    const businessesRef = firebase.database().ref('businesses');
+    businessesRef.orderByChild('sellerId').equalTo(currentUser.userId).once('value', (snapshot) => {
+        const userBusinessesList = document.getElementById('user-businesses-list');
+        userBusinessesList.innerHTML = '';
+        
+        if (!snapshot.exists()) {
+            userBusinessesList.innerHTML = '<div class="empty-state"><p>🏢</p><p>You haven\'t posted any businesses yet</p></div>';
+            return;
+        }
+        
+        const businesses = [];
+        snapshot.forEach((childSnapshot) => {
+            businesses.push({
+                id: childSnapshot.key,
+                ...childSnapshot.val()
+            });
+        });
+        
+        businesses.reverse().forEach(business => {
+            const businessCard = createUserBusinessCard(business);
+            userBusinessesList.appendChild(businessCard);
+        });
+    });
+}
+
+function createUserBusinessCard(business) {
+    const card = document.createElement('div');
+    card.className = 'product-card';
+    
+    const views = business.views || 0;
+    
+    let logoHtml = '';
+    if (business.logo) {
+        logoHtml = `<div class="business-logo-container">
+            <img src="${escapeHtml(business.logo)}" alt="Business logo" class="business-logo" loading="lazy">
+        </div>`;
+    }
+    
+    card.innerHTML = `
+        ${logoHtml}
+        <div class="product-header">
+            <div>
+                <div class="product-name">${escapeHtml(business.name)}</div>
+                <div class="product-stats">👁️ ${views} views</div>
+            </div>
+        </div>
+        <div class="product-description">${escapeHtml(business.description)}</div>
+        <div class="business-contact-preview">
+            <div class="contact-item-small">📧 ${escapeHtml(business.businessEmail)}</div>
+            <div class="contact-item-small">📱 ${escapeHtml(business.businessPhone)}</div>
+            <div class="contact-item-small">📍 ${escapeHtml(business.businessAddress)}</div>
+        </div>
+        <div class="product-footer">
+            <span class="product-category">Business</span>
+            <button class="btn-delete" onclick="deleteMyBusiness('${business.id}', '${escapeHtml(business.name)}')">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="3 6 5 6 21 6"></polyline>
                     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -1476,6 +1571,22 @@ function deleteMyProduct(productId, productName) {
         .catch((error) => {
             console.error('Error deleting product:', error);
             alert('Error deleting product: ' + error.message);
+        });
+}
+
+function deleteMyBusiness(businessId, businessName) {
+    if (!confirm(`Are you sure you want to delete "${businessName}"?`)) {
+        return;
+    }
+    
+    firebase.database().ref('businesses/' + businessId).remove()
+        .then(() => {
+            alert('Business deleted successfully');
+            loadUserBusinesses(); // Reload the list
+        })
+        .catch((error) => {
+            console.error('Error deleting business:', error);
+            alert('Error deleting business: ' + error.message);
         });
 }
 
@@ -2057,4 +2168,272 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+// Hall Monitor / Speed Cop Functions
+let speedCopMap = null;
+let speedCopMarkers = [];
+let addSpeedCopMap = null;
+let tempSpeedCopMarker = null;
+let tempSpeedCopLocation = null;
+
+function showAddSpeedCop() {
+    document.getElementById('speedcop-choice-modal').style.display = 'block';
+}
+
+function closeSpeedCopChoiceModal() {
+    document.getElementById('speedcop-choice-modal').style.display = 'none';
+}
+
+function placeSpeedCopHere() {
+    closeSpeedCopChoiceModal();
+    
+    if (!navigator.geolocation) {
+        alert('Geolocation is not supported by your browser');
+        return;
+    }
+    
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            
+            // Save directly to Firebase
+            const speedCopData = {
+                lat: lat,
+                lng: lng,
+                reportedBy: currentUser,
+                timestamp: Date.now(),
+                expiresAt: Date.now() + (10 * 60 * 60 * 1000)
+            };
+            
+            const speedCopRef = firebase.database().ref('speedcops').push();
+            speedCopRef.set(speedCopData)
+                .then(() => {
+                    alert('Speed cop location reported successfully! 🚨');
+                })
+                .catch(error => {
+                    console.error('Error reporting speed cop:', error);
+                    alert('Error reporting speed cop. Please try again.');
+                });
+        },
+        (error) => {
+            console.error('Geolocation error:', error);
+            alert('Unable to get your current location. Please try "Choose on Map" instead.');
+        }
+    );
+}
+
+function chooseSpeedCopLocation() {
+    closeSpeedCopChoiceModal();
+    document.getElementById('hall-monitor-view').style.display = 'none';
+    document.getElementById('add-speedcop-map-view').style.display = 'block';
+    initAddSpeedCopMap();
+}
+
+function initAddSpeedCopMap() {
+    if (addSpeedCopMap) {
+        addSpeedCopMap.remove();
+    }
+    
+    tempSpeedCopMarker = null;
+    tempSpeedCopLocation = null;
+    document.getElementById('confirm-speedcop-btn').disabled = true;
+    
+    addSpeedCopMap = L.map('add-speedcop-map', {
+        zoomControl: false
+    }).setView([0, 0], 2);
+    
+    // Add street map only (no layer toggle)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: 'Made and ran by networKING technologies',
+        maxZoom: 19
+    }).addTo(addSpeedCopMap);
+    
+    // Try to get user's location
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                addSpeedCopMap.setView([position.coords.latitude, position.coords.longitude], 15);
+            },
+            (error) => {
+                console.log('Geolocation error:', error);
+                addSpeedCopMap.setView([0, 0], 2);
+            }
+        );
+    }
+    
+    // Add click event to place marker
+    addSpeedCopMap.on('click', (e) => {
+        const lat = e.latlng.lat;
+        const lng = e.latlng.lng;
+        
+        // Remove existing temp marker if any
+        if (tempSpeedCopMarker) {
+            addSpeedCopMap.removeLayer(tempSpeedCopMarker);
+        }
+        
+        // Create custom icon for speed cop
+        const speedCopIcon = L.divIcon({
+            className: 'custom-marker',
+            html: `<div style="background: #ff4757; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); font-size: 20px;">🚨</div>`,
+            iconSize: [40, 40]
+        });
+        
+        // Add new marker
+        tempSpeedCopMarker = L.marker([lat, lng], { icon: speedCopIcon }).addTo(addSpeedCopMap);
+        
+        // Save temp location
+        tempSpeedCopLocation = { lat, lng };
+        
+        // Enable confirm button
+        document.getElementById('confirm-speedcop-btn').disabled = false;
+    });
+}
+
+function confirmSpeedCop() {
+    if (!tempSpeedCopLocation) {
+        alert('Please select a location on the map first');
+        return;
+    }
+    
+    const speedCopData = {
+        lat: tempSpeedCopLocation.lat,
+        lng: tempSpeedCopLocation.lng,
+        reportedBy: currentUser.username,
+        timestamp: Date.now(),
+        expiresAt: Date.now() + (10 * 60 * 60 * 1000)
+    };
+    
+    firebase.database().ref('speedcops').push(speedCopData)
+        .then(() => {
+            alert('Speed cop location reported successfully!');
+            closeAddSpeedCopMap();
+        })
+        .catch((error) => {
+            console.error('Error reporting speed cop:', error);
+            alert('Error reporting speed cop: ' + error.message);
+        });
+}
+
+function closeAddSpeedCopMap() {
+    document.getElementById('add-speedcop-map-view').style.display = 'none';
+    document.getElementById('hall-monitor-view').style.display = 'block';
+    if (addSpeedCopMap) {
+        addSpeedCopMap.remove();
+        addSpeedCopMap = null;
+    }
+    tempSpeedCopMarker = null;
+    tempSpeedCopLocation = null;
+}
+
+function showSpeedCopMap() {
+    document.getElementById('hall-monitor-view').style.display = 'none';
+    document.getElementById('speedcop-map-view').style.display = 'block';
+    initSpeedCopMap();
+}
+
+function initSpeedCopMap() {
+    if (speedCopMap) {
+        speedCopMap.remove();
+    }
+    
+    speedCopMap = L.map('speedcop-map').setView([0, 0], 2);
+    
+    // Add base layers
+    const streetMap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: 'Made and ran by networKING technologies',
+        maxZoom: 19
+    });
+    
+    const satelliteMap = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Made and ran by networKING technologies',
+        maxZoom: 19
+    });
+    
+    streetMap.addTo(speedCopMap);
+    
+    const baseMaps = {
+        "Street Map": streetMap,
+        "Satellite": satelliteMap
+    };
+    L.control.layers(baseMaps).addTo(speedCopMap);
+    
+    // Try to get user's location
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                speedCopMap.setView([position.coords.latitude, position.coords.longitude], 12);
+                loadSpeedCops();
+            },
+            (error) => {
+                console.log('Geolocation error:', error);
+                speedCopMap.setView([0, 0], 2);
+                loadSpeedCops();
+            }
+        );
+    } else {
+        loadSpeedCops();
+    }
+}
+
+function loadSpeedCops() {
+    // Clear existing markers
+    speedCopMarkers.forEach(marker => speedCopMap.removeLayer(marker));
+    speedCopMarkers = [];
+    
+    const now = Date.now();
+    
+    firebase.database().ref('speedcops').once('value', (snapshot) => {
+        snapshot.forEach((childSnapshot) => {
+            const speedCop = { id: childSnapshot.key, ...childSnapshot.val() };
+            
+            // Check if expired (10 hours = 36000000 ms)
+            if (speedCop.expiresAt && speedCop.expiresAt < now) {
+                // Remove expired speed cop from Firebase
+                firebase.database().ref('speedcops/' + speedCop.id).remove();
+                return; // Skip this marker
+            }
+            
+            // Calculate time remaining
+            const timeRemaining = speedCop.expiresAt ? speedCop.expiresAt - now : null;
+            let timeRemainingText = '';
+            if (timeRemaining) {
+                const hoursRemaining = Math.floor(timeRemaining / (60 * 60 * 1000));
+                const minutesRemaining = Math.floor((timeRemaining % (60 * 60 * 1000)) / (60 * 1000));
+                timeRemainingText = `<p style="margin: 0 0 8px 0; font-size: 13px; color: #ff4757; font-weight: 600;">⏱️ Expires in: ${hoursRemaining}h ${minutesRemaining}m</p>`;
+            }
+            
+            // Create custom icon for speed cops
+            const speedCopIcon = L.divIcon({
+                className: 'custom-marker',
+                html: `<div style="background: #ff4757; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); font-size: 20px;">🚨</div>`,
+                iconSize: [40, 40]
+            });
+            
+            const marker = L.marker([speedCop.lat, speedCop.lng], { icon: speedCopIcon });
+            
+            const reportedDate = new Date(speedCop.timestamp).toLocaleString();
+            
+            marker.bindPopup(`
+                <div style="width: 200px; text-align: center;">
+                    <h4 style="margin: 0 0 10px 0; font-size: 16px; color: #ff4757;">🚨 Speed Cop Alert</h4>
+                    ${timeRemainingText}
+                    <p style="margin: 0; font-size: 12px; color: #999;">${reportedDate}</p>
+                </div>
+            `);
+            
+            marker.addTo(speedCopMap);
+            speedCopMarkers.push(marker);
+        });
+    });
+}
+
+function closeSpeedCopMap() {
+    document.getElementById('speedcop-map-view').style.display = 'none';
+    document.getElementById('hall-monitor-view').style.display = 'block';
+    if (speedCopMap) {
+        speedCopMap.remove();
+        speedCopMap = null;
+    }
+}
 

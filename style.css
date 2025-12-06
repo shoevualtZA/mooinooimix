@@ -76,11 +76,23 @@ body {
     font-size: 20px;
     cursor: pointer;
     transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .btn-icon:hover {
     background: rgba(255, 255, 255, 0.3);
     transform: scale(1.1);
+}
+
+.hamburger-btn svg {
+    stroke: white;
+    transition: transform 0.3s ease;
+}
+
+.hamburger-btn:hover svg {
+    transform: rotate(90deg);
 }
 
 .auth-container {
@@ -278,6 +290,37 @@ body {
 }
 
 .menu-card p {
+    font-size: 14px;
+    color: #666;
+    margin: 0;
+}
+
+/* Hall Monitor Cards */
+.hall-monitor-card {
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    border-radius: 16px;
+    padding: 30px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    border: 2px solid transparent;
+}
+
+.hall-monitor-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    border-color: #ff4757;
+}
+
+.hall-monitor-card h3 {
+    font-size: 20px;
+    color: #1a1a1a;
+    margin: 15px 0 10px 0;
+    font-weight: 700;
+}
+
+.hall-monitor-card p {
     font-size: 14px;
     color: #666;
     margin: 0;
