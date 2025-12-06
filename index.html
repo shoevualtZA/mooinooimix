@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MooiNooiMix Marketplace</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛍️</text></svg>">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="phone-container">
+        <!-- Auth View -->
+        <div id="auth-view" class="view">
+            <div class="header">
+                <h1>🛍️ MooiNooiMix</h1>
+                <p class="subtitle">Your Marketplace</p>
+            </div>
+
+            <div class="auth-container">
+                <!-- Login Form -->
+                <div id="login-form" class="auth-form">
+                    <h2>Welcome Back</h2>
+                    <div class="input-group">
+                        <label>Username</label>
+                        <input type="text" id="login-username" placeholder="Enter your username">
+                    </div>
+                    <div class="input-group">
+                        <label>Password</label>
+                        <input type="password" id="login-password" placeholder="Enter your password">
+                    </div>
+                    <button class="btn btn-primary" onclick="login()">Log In</button>
+                    <p class="switch-auth">Don't have an account? <span onclick="showSignup()">Sign Up</span></p>
+                </div>
+
+                <!-- Signup Form -->
+                <div id="signup-form" class="auth-form" style="display: none;">
+                    <h2>Create Account</h2>
+                    <div class="input-group">
+                        <label>Username</label>
+                        <input type="text" id="signup-username" placeholder="Choose a username">
+                    </div>
+                    <div class="input-group">
+                        <label>Password</label>
+                        <input type="password" id="signup-password" placeholder="Choose a password">
+                    </div>
+                    <button class="btn btn-primary" onclick="signup()">Sign Up</button>
+                    <p class="switch-auth">Already have an account? <span onclick="showLogin()">Log In</span></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Marketplace View -->
+        <div id="marketplace-view" class="view" style="display: none;">
+            <div class="header" id="main-header">
+                <h1>🛍️ MooiNooiMix</h1>
+                <div class="header-icons">
+                    <button class="btn-icon" onclick="showSettings()">⚙️</button>
+                    <button class="btn-icon" onclick="logout()">🚪</button>
+                </div>
+            </div>
+
+            <div class="content">
+                <!-- Main Menu (shown by default) -->
+                <div id="main-menu" class="main-menu">
+                    <div class="menu-card" onclick="filterCategory('market')">
+                        <div class="menu-icon">🛍️</div>
+                        <h3>Market</h3>
+                        <p>Browse and buy products</p>
+                    </div>
+                    <div class="menu-card" onclick="filterCategory('location')">
+                        <div class="menu-icon">📍</div>
+                        <h3>Location</h3>
+                        <p>View map of listings</p>
+                    </div>
+                    <div class="menu-card" onclick="filterCategory('business')">
+                        <div class="menu-icon">🏢</div>
+                        <h3>Business Ads</h3>
+                        <p>Explore local businesses</p>
+                    </div>
+                </div>
+
+                <!-- Category View Header -->
+                <div id="category-header" style="display: none; margin-bottom: 20px;">
+                    <button onclick="showMainMenu()" style="background: white; border: 2px solid #4facfe; color: #4facfe; padding: 10px 20px; border-radius: 12px; cursor: pointer; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; margin-bottom: 15px;">
+                        <span style="font-size: 18px;">←</span> Back to Menu
+                    </button>
+                    <button class="btn btn-add" id="add-btn" onclick="showAddProduct()">+ Add Product</button>
+                </div>
+
+                <!-- Loading Spinner -->
+                <div id="loading-spinner" class="loading-spinner" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Loading...</p>
+                </div>
+
+                <!-- Products Grid -->
+                <div id="products-grid" class="products-grid" style="display: none;">
+                    <!-- Products will be loaded here -->
+                </div>
+                
+                <!-- Business Grid (only shown for business category) -->
+                <div id="business-grid" class="products-grid" style="display: none;">
+                    <!-- Businesses will be loaded here -->
+                </div>
+                
+                <!-- Location Map View (only shown for location category) -->
+                <div id="location-map-view" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; background: white;">
+                    <button onclick="closeLocationMap()" style="position: absolute; top: 20px; left: 20px; z-index: 1000; background: white; border: none; padding: 12px 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); cursor: pointer; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 20px;">←</span> Back
+                    </button>
+                    <div id="location-map-filters" style="position: absolute; top: 20px; right: 20px; z-index: 1000; background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+                        <label style="display: flex; align-items: center; margin-bottom: 10px; cursor: pointer;">
+                            <input type="checkbox" id="show-products" checked style="margin-right: 8px; width: 18px; height: 18px;">
+                            <span style="font-weight: 600;">🛍️ Products</span>
+                        </label>
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="checkbox" id="show-businesses" checked style="margin-right: 8px; width: 18px; height: 18px;">
+                            <span style="font-weight: 600;">🏢 Businesses</span>
+                        </label>
+                    </div>
+                    <div id="location-main-map" style="width: 100%; height: 100%;"></div>
+                </div>
+            </div>
+
+            <div class="user-info">
+                <p>Logged in as: <strong id="current-user"></strong></p>
+            </div>
+        </div>
+
+        <!-- Product Detail Modal -->
+        <div id="product-detail-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="product-detail-name">Product Details</h2>
+                    <button class="btn-close" onclick="closeProductDetail()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="product-detail-images" class="product-detail-images"></div>
+                    <div id="product-detail-info" class="product-detail-info"></div>
+                    <hr style="margin: 20px 0;">
+                    <div id="product-detail-seller" class="product-detail-seller"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Seller Info Modal -->
+        <div id="seller-info-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="seller-modal-name">Seller Info</h2>
+                    <button class="btn-close" onclick="closeSellerInfo()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="seller-rating" class="seller-rating"></div>
+                    <div id="seller-contact" class="seller-contact"></div>
+                    <div id="seller-products-preview" class="seller-products-preview"></div>
+                    <hr style="margin: 20px 0;">
+                    <h3>Leave a Review for This Seller</h3>
+                    <div class="input-group">
+                        <label>Rating</label>
+                        <div class="star-rating" id="review-stars">
+                            <span class="star" onclick="setRating(1)">☆</span>
+                            <span class="star" onclick="setRating(2)">☆</span>
+                            <span class="star" onclick="setRating(3)">☆</span>
+                            <span class="star" onclick="setRating(4)">☆</span>
+                            <span class="star" onclick="setRating(5)">☆</span>
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label>Review (Optional)</label>
+                        <textarea id="review-text" placeholder="Share your experience with this seller..." rows="3"></textarea>
+                    </div>
+                    <button class="btn btn-primary" onclick="submitReview()">Submit Review</button>
+                    <hr style="margin: 20px 0;">
+                    <h3>Reviews</h3>
+                    <div id="seller-reviews-list"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div id="settings-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Settings</h2>
+                    <button class="btn-close" onclick="closeSettings()">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="settings-tabs">
+                        <button class="settings-tab active" onclick="showSettingsTab('my-posts')">My Posts</button>
+                        <button class="settings-tab" onclick="showSettingsTab('bookmarks')">Bookmarks</button>
+                        <button class="settings-tab" onclick="showSettingsTab('contact-info')">Contact Info</button>
+                        <button class="settings-tab" onclick="showSettingsTab('reviews')">My Reviews</button>
+                    </div>
+                    
+                    <div id="my-posts-tab" class="settings-content">
+                        <div id="user-products-list" class="products-grid"></div>
+                    </div>
+                    
+                    <div id="bookmarks-tab" class="settings-content" style="display: none;">
+                        <div id="bookmarks-list" class="products-grid"></div>
+                    </div>
+                    
+                    <div id="contact-info-tab" class="settings-content" style="display: none;">
+                        <div class="input-group">
+                            <label>Email (Optional)</label>
+                            <input type="email" id="user-email" placeholder="your.email@example.com">
+                        </div>
+                        <div class="input-group">
+                            <label>Phone Number (Optional)</label>
+                            <input type="tel" id="user-phone" placeholder="+1 234 567 8900">
+                        </div>
+                        <div class="input-group">
+                            <label>Location (Optional)</label>
+                            <input type="text" id="user-location" placeholder="City, Country">
+                        </div>
+                        <button class="btn btn-primary" onclick="saveContactInfo()">Save Contact Info</button>
+                        <p style="margin-top: 15px; color: #666; font-size: 14px;">💡 This info will be visible to other users on your products</p>
+                    </div>
+                    
+                    <div id="reviews-tab" class="settings-content" style="display: none;">
+                        <div id="user-reviews-list"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Product Modal -->
+        <div id="add-product-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Add Product</h2>
+                    <button class="btn-close" onclick="closeAddProduct()">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="input-group">
+                        <label>Product Name</label>
+                        <input type="text" id="product-name" placeholder="Enter product name">
+                    </div>
+                    <div class="input-group">
+                        <label>Description</label>
+                        <textarea id="product-description" placeholder="Describe your product" rows="3"></textarea>
+                    </div>
+                    <div class="input-group">
+                        <label>Price</label>
+                        <input type="number" id="product-price" placeholder="0.00" step="0.01">
+                    </div>
+                    <div class="input-group">
+                        <label>Category</label>
+                        <select id="product-category" onchange="handleCategorySelection()">
+                            <option value="market">Market</option>
+                            <option value="location">Location</option>
+                            <option value="business">Business Ads</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Standard Product Fields -->
+                    <div id="standard-fields">
+                        <div class="input-group">
+                            <label>Product Images (Max 3)</label>
+                            <input type="file" id="product-images" accept="image/*" multiple>
+                            <div id="image-preview" class="image-preview"></div>
+                        </div>
+                        <div class="input-group">
+                            <label style="display: flex; align-items: center; gap: 10px;">
+                                <input type="checkbox" id="add-location-checkbox" style="width: auto; margin: 0;">
+                                📍 Add Location (Optional)
+                            </label>
+                        </div>
+                        <div class="input-group" id="location-map-group" style="display: none;">
+                            <p style="font-size: 13px; color: #666; margin: 5px 0 10px 0;">Click on the map to set your location</p>
+                            <div id="location-map" style="height: 300px; width: 100%; border-radius: 8px; margin-bottom: 10px;"></div>
+                            <div id="selected-location" style="font-size: 13px; color: #666;"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Business Fields (only shown for Business Ads) -->
+                    <div id="business-fields" style="display: none;">
+                        <div class="input-group">
+                            <label>Company Logo</label>
+                            <input type="file" id="business-logo" accept="image/*">
+                            <div id="logo-preview" class="image-preview"></div>
+                        </div>
+                        <div class="input-group">
+                            <label>Business Email</label>
+                            <input type="email" id="business-email" placeholder="contact@business.com">
+                        </div>
+                        <div class="input-group">
+                            <label>Business Phone</label>
+                            <input type="tel" id="business-phone" placeholder="+1 234 567 8900">
+                        </div>
+                        <div class="input-group">
+                            <label>Business Address</label>
+                            <input type="text" id="business-address" placeholder="123 Main St, City, Country">
+                        </div>
+                        <div class="input-group">
+                            <label>Website (Optional)</label>
+                            <input type="url" id="business-website" placeholder="https://www.yourbusiness.com">
+                        </div>
+                        <div class="input-group">
+                            <label>📍 Business Location</label>
+                            <p style="font-size: 13px; color: #666; margin: 5px 0 10px 0;">Click on the map to set your business location</p>
+                            <div id="business-location-map" style="height: 300px; width: 100%; border-radius: 8px; margin-bottom: 10px;"></div>
+                            <div id="business-selected-location" style="font-size: 13px; color: #666;"></div>
+                        </div>
+                    </div>
+                    
+                    <button class="btn btn-primary" onclick="addProduct()">Post Product</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- App Scripts -->
+    <script src="firebase-config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
