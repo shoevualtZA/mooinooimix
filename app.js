@@ -10,6 +10,12 @@ let locationMainMap = null;
 let productMarkers = [];
 let businessMarkers = [];
 
+// Simple notification system
+function showNotification(message, type = 'info') {
+    // For now, use alert - can be enhanced later
+    alert(message);
+}
+
 // Check if user is already logged in
 function checkAuth() {
     const savedUser = localStorage.getItem('currentUser');
@@ -932,7 +938,42 @@ function convertImageToBase64(file) {
     });
 }
 
+function cleanupSoldProducts() {
+    const productsRef = firebase.database().ref('products');
+    const now = Date.now();
+    
+    productsRef.once('value').then((snapshot) => {
+        if (!snapshot.exists()) return;
+        
+        const deletePromises = [];
+        snapshot.forEach((childSnapshot) => {
+            const product = childSnapshot.val();
+            const productId = childSnapshot.key;
+            
+            // Delete if product is sold and deleteAt time has passed
+            if (product.sold === true && product.deleteAt && product.deleteAt <= now) {
+                console.log(`Auto-deleting sold product: ${product.name}`);
+                const deletePromise = firebase.database().ref('products/' + productId).remove();
+                deletePromises.push(deletePromise);
+            }
+        });
+        
+        if (deletePromises.length > 0) {
+            Promise.all(deletePromises).then(() => {
+                console.log(`Cleaned up ${deletePromises.length} sold product(s)`);
+            }).catch((error) => {
+                console.error('Error cleaning up sold products:', error);
+            });
+        }
+    }).catch((error) => {
+        console.error('Error checking sold products:', error);
+    });
+}
+
 function loadProducts() {
+    // Clean up any expired sold products first
+    cleanupSoldProducts();
+    
     const productsRef = firebase.database().ref('products');
     const productsGrid = document.getElementById('products-grid');
     const loadingSpinner = document.getElementById('loading-spinner');
@@ -967,6 +1008,11 @@ function loadProducts() {
                 id: childSnapshot.key,
                 ...childSnapshot.val()
             };
+            
+            // Skip sold products
+            if (product.sold === true) {
+                return;
+            }
             
             // Check if seller is banned
             const promise = firebase.database().ref('users/' + product.seller + '/banned').once('value').then((userSnapshot) => {
@@ -1009,6 +1055,9 @@ function loadProducts() {
 }
 
 function loadBusinesses() {
+    // Clean up any expired sold products first
+    cleanupSoldProducts();
+    
     const businessesRef = firebase.database().ref('businesses');
     const businessGrid = document.getElementById('business-grid');
     const loadingSpinner = document.getElementById('loading-spinner');
@@ -1084,24 +1133,16 @@ function createProductCard(product) {
     
     const formattedPrice = product.price.toFixed(2);
     const isBookmarked = checkIfBookmarked(product.id);
-    const views = product.views || 0;
     
-    let imagesHtml = '';
-    
-    // Check if this is a business listing
-    if (product.category === 'business' && product.logo) {
-        imagesHtml = `<div class="business-logo-container">
-            <img src="${escapeHtml(product.logo)}" alt="Business logo" class="business-logo" onclick="window.open('${escapeHtml(product.logo)}', '_blank')">
+    // Get first image only
+    let imageHtml = '';
+    if (product.images && product.images.length > 0) {
+        imageHtml = `<div class="product-main-image-container">
+            <img src="${escapeHtml(product.images[0])}" alt="Product image" class="product-main-image" loading="lazy">
         </div>`;
-    } else if (product.images && product.images.length > 0) {
-        imagesHtml = '<div class="product-images">';
-        product.images.forEach(imageUrl => {
-            imagesHtml += `<img src="${escapeHtml(imageUrl)}" alt="Product image" class="product-image" loading="lazy" onclick="window.open('${escapeHtml(imageUrl)}', '_blank')">`;
-        });
-        imagesHtml += '</div>';
     }
     
-    // Get seller rating
+    // Get seller rating (for products only)
     firebase.database().ref('reviews/' + product.seller).once('value', (reviewSnapshot) => {
         let avgRating = 0;
         let reviewCount = 0;
@@ -1119,29 +1160,17 @@ function createProductCard(product) {
         const ratingText = avgRating > 0 ? `${avgRating} (${reviewCount})` : 'No reviews';
         
         card.innerHTML = `
-            <div class="product-header">
-                <div>
+            ${imageHtml}
+            <div class="product-card-info">
+                <div class="product-card-header">
                     <div class="product-name">${escapeHtml(product.name)}</div>
-                    <div class="product-stats">👁️ ${views} views</div>
-                </div>
-                <div style="display: flex; align-items: center; gap: 10px;">
                     <button class="bookmark-btn ${isBookmarked ? 'bookmarked' : ''}" onclick="toggleBookmark('${product.id}', event)">
                         ${isBookmarked ? '⭐' : '☆'}
                     </button>
-                    <div class="product-price">$${formattedPrice}</div>
                 </div>
-            </div>
-            ${imagesHtml}
-            <div class="product-description">${escapeHtml(product.description)}</div>
-            <div class="product-footer">
-                <button class="seller-badge-btn" onclick="showSellerInfo('${escapeHtml(product.seller)}', event)">
-                    <span class="seller-icon">👤</span>
-                    <div class="seller-info">
-                        <div class="seller-name">${escapeHtml(product.seller)}</div>
-                        <div class="seller-rating">${ratingStars} ${ratingText}</div>
-                    </div>
-                </button>
-                <span class="product-category">${escapeHtml(product.category)}</span>
+                <div class="product-card-rating">
+                    ${ratingStars} ${ratingText}
+                </div>
             </div>
         `;
     });
@@ -1176,8 +1205,8 @@ function createBusinessCard(business) {
         </div>`;
     }
     
-    // Get seller rating
-    firebase.database().ref('reviews/' + business.seller).once('value', (reviewSnapshot) => {
+    // Get business rating (separate from seller rating)
+    firebase.database().ref('businessReviews/' + business.id).once('value', (reviewSnapshot) => {
         let avgRating = 0;
         let reviewCount = 0;
         
@@ -1359,6 +1388,9 @@ function showSettingsTab(tab) {
 function loadUserPosts() {
     if (!currentUser) return;
     
+    // Clean up any expired sold products first
+    cleanupSoldProducts();
+    
     const productsRef = firebase.database().ref('products');
     productsRef.orderByChild('sellerId').equalTo(currentUser.userId).once('value', (snapshot) => {
         const userProductsList = document.getElementById('user-products-list');
@@ -1400,29 +1432,44 @@ function createUserProductCard(product) {
         imagesHtml += '</div>';
     }
     
+    const isSold = product.sold === true;
+    const soldBadge = isSold ? '<div style="background: #ff4757; color: white; padding: 4px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; margin-left: 10px;">SOLD</div>' : '';
+    const soldOverlay = isSold ? '<div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; border-radius: 16px;"><span style="background: #ff4757; color: white; padding: 10px 20px; border-radius: 8px; font-weight: 700; font-size: 18px;">SOLD</span></div>' : '';
+    
     card.innerHTML = `
+        ${soldOverlay}
         <div class="product-header">
-            <div>
-                <div class="product-name">${escapeHtml(product.name)}</div>
-                <div class="product-stats">👁️ ${views} views</div>
+            <div style="display: flex; align-items: center;">
+                <div>
+                    <div class="product-name">${escapeHtml(product.name)}</div>
+                    <div class="product-stats">👁️ ${views} views</div>
+                </div>
+                ${soldBadge}
             </div>
             <div class="product-price">$${formattedPrice}</div>
         </div>
         ${imagesHtml}
         <div class="product-description">${escapeHtml(product.description)}</div>
-        <div class="product-footer">
+        <div class="product-footer" style="display: flex; gap: 10px; flex-wrap: wrap;">
             <span class="product-category">${escapeHtml(product.category)}</span>
-            <button class="btn-delete" onclick="deleteMyProduct('${product.id}', '${escapeHtml(product.name)}')">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="3 6 5 6 21 6"></polyline>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                    <line x1="10" y1="11" x2="10" y2="17"></line>
-                    <line x1="14" y1="11" x2="14" y2="17"></line>
-                </svg>
-                Delete
-            </button>
+            <div style="display: flex; gap: 10px; margin-left: auto;">
+                ${!isSold ? `<button class="btn-sold" onclick="markAsSold('${product.id}', '${escapeHtml(product.name)}')" style="background: #2ecc71; color: white; border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 5px;">
+                    ✓ Mark as Sold
+                </button>` : ''}
+                <button class="btn-delete" onclick="deleteMyProduct('${product.id}', '${escapeHtml(product.name)}')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        <line x1="10" y1="11" x2="10" y2="17"></line>
+                        <line x1="14" y1="11" x2="14" y2="17"></line>
+                    </svg>
+                    Delete
+                </button>
+            </div>
         </div>
     `;
+    
+    card.style.position = 'relative';
     
     return card;
 }
@@ -1558,6 +1605,29 @@ function toggleBookmark(productId, event) {
 }
 
 // Delete User's Own Product
+function markAsSold(productId, productName) {
+    if (!confirm(`Mark "${productName}" as sold?\n\nThis will show as SOLD to other users and will be automatically deleted in 30 minutes.`)) {
+        return;
+    }
+    
+    const soldTimestamp = Date.now();
+    const deleteAt = soldTimestamp + (30 * 60 * 1000); // 30 minutes from now
+    
+    firebase.database().ref('products/' + productId).update({
+        sold: true,
+        soldTimestamp: soldTimestamp,
+        deleteAt: deleteAt
+    })
+        .then(() => {
+            alert('Product marked as SOLD! It will be automatically removed in 30 minutes.');
+            loadUserPosts(); // Reload the list
+        })
+        .catch((error) => {
+            console.error('Error marking product as sold:', error);
+            alert('Error updating product: ' + error.message);
+        });
+}
+
 function deleteMyProduct(productId, productName) {
     if (!confirm(`Are you sure you want to delete "${productName}"?`)) {
         return;
@@ -1676,15 +1746,29 @@ function saveContactInfo() {
 // Review Functions
 let selectedRating = 0;
 let currentSellerForReview = '';
+let currentBusinessForReview = '';
+let isReviewingBusiness = false;
 
 function showSellerInfo(seller, event) {
     event.stopPropagation();
     currentSellerForReview = seller;
+    isReviewingBusiness = false;
     
     document.getElementById('seller-modal-name').textContent = seller;
     document.getElementById('seller-info-modal').classList.add('active');
     
-    // Load seller rating
+    // Show all seller-specific sections (wait for modal to render)
+    setTimeout(() => {
+        const ratingEl = document.getElementById('seller-rating');
+        const contactEl = document.getElementById('seller-contact');
+        const previewEl = document.getElementById('seller-products-preview');
+        
+        if (ratingEl) ratingEl.style.display = 'block';
+        if (contactEl) contactEl.style.display = 'block';
+        if (previewEl) previewEl.style.display = 'block';
+    }, 0);
+    
+    // Load seller rating (for product sellers only)
     firebase.database().ref('reviews/' + seller).once('value', (snapshot) => {
         const ratingDiv = document.getElementById('seller-rating');
         
@@ -1805,7 +1889,7 @@ function submitReview() {
         return;
     }
     
-    if (currentUser.username === currentSellerForReview) {
+    if (!isReviewingBusiness && currentUser.username === currentSellerForReview) {
         alert('You cannot review yourself');
         return;
     }
@@ -1824,17 +1908,89 @@ function submitReview() {
         timestamp: firebase.database.ServerValue.TIMESTAMP
     };
     
-    firebase.database().ref('reviews/' + currentSellerForReview).push(review);
+    // Use different path for business reviews vs seller reviews
+    const reviewPath = isReviewingBusiness ? 'businessReviews/' + currentBusinessForReview : 'reviews/' + currentSellerForReview;
+    
+    firebase.database().ref(reviewPath).push(review);
     
     alert('Review submitted successfully!');
     selectedRating = 0;
     document.getElementById('review-text').value = '';
     updateStarDisplay();
-    loadSellerReviews(currentSellerForReview);
+    
+    if (isReviewingBusiness) {
+        loadBusinessReviews(currentBusinessForReview);
+    } else {
+        loadSellerReviews(currentSellerForReview);
+    }
 }
 
 function loadSellerReviews(seller) {
+    isReviewingBusiness = false;
     firebase.database().ref('reviews/' + seller).once('value', (snapshot) => {
+        const reviewsList = document.getElementById('seller-reviews-list');
+        reviewsList.innerHTML = '';
+        
+        if (!snapshot.exists()) {
+            reviewsList.innerHTML = '<p style="color: #999;">No reviews yet</p>';
+            return;
+        }
+        
+        const reviews = [];
+        snapshot.forEach((child) => {
+            reviews.push({ id: child.key, ...child.val() });
+        });
+        
+        reviews.reverse().forEach(review => {
+            const stars = '★'.repeat(review.rating) + '☆'.repeat(5 - review.rating);
+            const date = review.timestamp ? new Date(review.timestamp).toLocaleDateString() : 'Unknown';
+            
+            const reviewDiv = document.createElement('div');
+            reviewDiv.className = 'review-item';
+            reviewDiv.innerHTML = `
+                <div class="review-header">
+                    <div>
+                        <div class="review-author">${escapeHtml(review.reviewer)}</div>
+                        <div class="review-date">${date}</div>
+                    </div>
+                    <div class="review-stars">${stars}</div>
+                </div>
+                ${review.text ? `<div class="review-text">${escapeHtml(review.text)}</div>` : ''}
+            `;
+            reviewsList.appendChild(reviewDiv);
+        });
+    });
+}
+
+function showBusinessReviewModal(businessId, businessName) {
+    isReviewingBusiness = true;
+    currentBusinessForReview = businessId;
+    document.getElementById('seller-modal-name').textContent = businessName;
+    document.getElementById('seller-info-modal').classList.add('active');
+    
+    // Hide seller-specific sections (wait for modal to render)
+    setTimeout(() => {
+        const ratingEl = document.getElementById('seller-rating');
+        const contactEl = document.getElementById('seller-contact');
+        const previewEl = document.getElementById('seller-products-preview');
+        
+        if (ratingEl) ratingEl.style.display = 'none';
+        if (contactEl) contactEl.style.display = 'none';
+        if (previewEl) previewEl.style.display = 'none';
+    }, 0);
+    
+    // Reset review form
+    selectedRating = 0;
+    document.getElementById('review-text').value = '';
+    updateStarDisplay();
+    
+    loadBusinessReviews(businessId);
+}
+
+function loadBusinessReviews(businessId) {
+    isReviewingBusiness = true;
+    currentBusinessForReview = businessId;
+    firebase.database().ref('businessReviews/' + businessId).once('value', (snapshot) => {
         const reviewsList = document.getElementById('seller-reviews-list');
         reviewsList.innerHTML = '';
         
@@ -2042,7 +2198,22 @@ function showProductDetail(product) {
         ${locationMapHtml}
     `;
     
-    // Initialize location map if location exists
+    // Add directions button if location exists
+    const locationButtonContainer = document.getElementById('product-location-button-container');
+    if (product.location && product.location.lat && product.location.lng) {
+        locationButtonContainer.innerHTML = `
+            <button onclick="showDirectionsMap(${product.location.lat}, ${product.location.lng}, '${escapeHtml(product.name)}')" style="width: 100%; padding: 16px; margin: 20px 0; background: white; color: #333; border: 2px solid #e0e0e0; border-radius: 16px; cursor: pointer; font-weight: 600; font-size: 16px; display: flex; align-items: center; gap: 15px; transition: all 0.3s; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                <span style="font-size: 32px;">🗺️</span>
+                <div style="text-align: left; flex: 1;">
+                    <div style="font-size: 16px; font-weight: 700; color: #333; margin-bottom: 4px;">Get Directions</div>
+                    <div style="font-size: 13px; color: #999; font-weight: 400;">View route to this location</div>
+                </div>
+            </button>
+        `;
+    } else {
+        locationButtonContainer.innerHTML = '';
+    }
+    
     // Initialize location map if location exists
     if (product.location && product.location.lat && product.location.lng) {
         setTimeout(() => {
@@ -2075,9 +2246,12 @@ function showProductDetail(product) {
             addMapFullscreenHandler('product-location-map', productMap);
         }, 100);
     }
-    // Display seller info
+    // Display seller info or business rating
     firebase.database().ref('users/' + product.seller + '/contact').once('value', (snapshot) => {
-        firebase.database().ref('reviews/' + product.seller).once('value', (reviewSnapshot) => {
+        // Use different review path for businesses vs products
+        const reviewPath = product.category === 'business' ? 'businessReviews/' + product.id : 'reviews/' + product.seller;
+        
+        firebase.database().ref(reviewPath).once('value', (reviewSnapshot) => {
             let avgRating = 0;
             let reviewCount = 0;
             
@@ -2106,20 +2280,40 @@ function showProductDetail(product) {
             }
             
             const sellerDiv = document.getElementById('product-detail-seller');
-            sellerDiv.innerHTML = `
-                <h3>Seller Information</h3>
-                <button class="seller-detail-btn" onclick="showSellerInfo('${escapeHtml(product.seller)}', event)">
-                    <div class="seller-detail-left">
-                        <span class="seller-icon-large">👤</span>
-                        <div>
-                            <div class="seller-name-large">${escapeHtml(product.seller)}</div>
-                            <div class="seller-rating">${ratingStars} ${ratingText}</div>
+            
+            // Show different info for businesses vs products
+            if (product.category === 'business') {
+                sellerDiv.innerHTML = `
+                    <h3>Business Rating</h3>
+                    <div style="padding: 15px; background: #f8f9fa; border-radius: 12px; margin-bottom: 15px;">
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                            <span style="font-size: 24px;">⭐</span>
+                            <div>
+                                <div style="font-size: 20px; font-weight: 700; color: #333;">${ratingStars} ${ratingText}</div>
+                                <div style="font-size: 13px; color: #666;">Customer Reviews</div>
+                            </div>
                         </div>
                     </div>
-                    <div class="seller-detail-arrow">View Profile →</div>
-                </button>
-                ${contactHtml}
-            `;
+                    <button class="btn-primary" onclick="showBusinessReviewModal('${product.id}', '${escapeHtml(product.name)}')" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
+                        ⭐ Write a Review
+                    </button>
+                `;
+            } else {
+                sellerDiv.innerHTML = `
+                    <h3>Seller Information</h3>
+                    <button class="seller-detail-btn" onclick="showSellerInfo('${escapeHtml(product.seller)}', event)">
+                        <div class="seller-detail-left">
+                            <span class="seller-icon-large">👤</span>
+                            <div>
+                                <div class="seller-name-large">${escapeHtml(product.seller)}</div>
+                                <div class="seller-rating">${ratingStars} ${ratingText}</div>
+                            </div>
+                        </div>
+                        <div class="seller-detail-arrow">View Profile →</div>
+                    </button>
+                    ${contactHtml}
+                `;
+            }
         });
     });
 }
@@ -2146,6 +2340,137 @@ function showBusinessDetail(businessId) {
 
 function closeProductDetail() {
     document.getElementById('product-detail-modal').classList.remove('active');
+}
+
+let directionsMap = null;
+
+function showDirectionsMap(destLat, destLng, productName) {
+    document.getElementById('product-directions-modal').style.display = 'block';
+    
+    // Initialize map
+    if (directionsMap) {
+        directionsMap.remove();
+    }
+    
+    directionsMap = L.map('directions-map').setView([destLat, destLng], 13);
+    
+    // Add street map
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: 'Made and ran by networKING technologies',
+        maxZoom: 19
+    }).addTo(directionsMap);
+    
+    // Add destination marker
+    const destIcon = L.divIcon({
+        className: 'custom-marker',
+        html: `<div style="background: #ff4757; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); font-size: 20px;">📍</div>`,
+        iconSize: [40, 40]
+    });
+    
+    const destMarker = L.marker([destLat, destLng], { icon: destIcon }).addTo(directionsMap);
+    destMarker.bindPopup(`<b>${escapeHtml(productName)}</b>`).openPopup();
+    
+    // Try to get user's current location and draw route
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const userLat = position.coords.latitude;
+                const userLng = position.coords.longitude;
+                
+                // Add user location marker
+                const userIcon = L.divIcon({
+                    className: 'custom-marker',
+                    html: `<div style="background: #4facfe; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); font-size: 20px;">📍</div>`,
+                    iconSize: [40, 40]
+                });
+                
+                const userMarker = L.marker([userLat, userLng], { icon: userIcon }).addTo(directionsMap);
+                userMarker.bindPopup('<b>Your Location</b>');
+                
+                // Get route from OSRM (free routing service)
+                const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${userLng},${userLat};${destLng},${destLat}?overview=full&geometries=geojson`;
+                
+                fetch(osrmUrl)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+                            const route = data.routes[0];
+                            const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                            
+                            // Draw the route following roads
+                            const routeLine = L.polyline(coordinates, {
+                                color: '#4facfe',
+                                weight: 5,
+                                opacity: 0.8
+                            }).addTo(directionsMap);
+                            
+                            // Fit map to show route
+                            directionsMap.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
+                            
+                            // Get distance from OSRM
+                            const distanceKm = (route.distance / 1000).toFixed(2);
+                            
+                            // Add distance info
+                            const infoBox = L.control({ position: 'topright' });
+                            infoBox.onAdd = function() {
+                                const div = L.DomUtil.create('div', 'info-box');
+                                div.style.cssText = 'background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); font-weight: 600;';
+                                div.innerHTML = `📏 ${distanceKm} km`;
+                                return div;
+                            };
+                            infoBox.addTo(directionsMap);
+                        } else {
+                            // Fallback to straight line if routing fails
+                            const route = L.polyline([[userLat, userLng], [destLat, destLng]], {
+                                color: '#4facfe',
+                                weight: 4,
+                                opacity: 0.7,
+                                dashArray: '10, 10'
+                            }).addTo(directionsMap);
+                            
+                            directionsMap.fitBounds(route.getBounds(), { padding: [50, 50] });
+                            
+                            const distance = directionsMap.distance([userLat, userLng], [destLat, destLng]);
+                            const distanceKm = (distance / 1000).toFixed(2);
+                            
+                            const infoBox = L.control({ position: 'topright' });
+                            infoBox.onAdd = function() {
+                                const div = L.DomUtil.create('div', 'info-box');
+                                div.style.cssText = 'background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); font-weight: 600;';
+                                div.innerHTML = `📏 ~${distanceKm} km (straight line)`;
+                                return div;
+                            };
+                            infoBox.addTo(directionsMap);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Routing error:', error);
+                        // Fallback to straight line
+                        const route = L.polyline([[userLat, userLng], [destLat, destLng]], {
+                            color: '#4facfe',
+                            weight: 4,
+                            opacity: 0.7,
+                            dashArray: '10, 10'
+                        }).addTo(directionsMap);
+                        
+                        directionsMap.fitBounds(route.getBounds(), { padding: [50, 50] });
+                    });
+            },
+            (error) => {
+                console.log('Geolocation error:', error);
+                // Just show destination if user location fails
+                directionsMap.setView([destLat, destLng], 13);
+            }
+        );
+    }
+}
+
+function closeDirectionsMap() {
+    document.getElementById('product-directions-modal').style.display = 'none';
+    if (directionsMap) {
+        directionsMap.remove();
+        directionsMap = null;
+    }
 }
 
 // Close modals when clicking outside
@@ -2184,11 +2509,13 @@ function closeSpeedCopChoiceModal() {
     document.getElementById('speedcop-choice-modal').style.display = 'none';
 }
 
+let pendingSpeedCopLocation = null;
+
 function placeSpeedCopHere() {
     closeSpeedCopChoiceModal();
     
     if (!navigator.geolocation) {
-        alert('Geolocation is not supported by your browser');
+        showNotification('Geolocation is not supported by your browser', 'error');
         return;
     }
     
@@ -2197,30 +2524,49 @@ function placeSpeedCopHere() {
             const lat = position.coords.latitude;
             const lng = position.coords.longitude;
             
-            // Save directly to Firebase
-            const speedCopData = {
-                lat: lat,
-                lng: lng,
-                reportedBy: currentUser,
-                timestamp: Date.now(),
-                expiresAt: Date.now() + (10 * 60 * 60 * 1000)
-            };
+            // Store location and show confirmation modal
+            pendingSpeedCopLocation = { lat, lng };
+            document.getElementById('speedcop-confirm-modal').classList.add('active');
             
-            const speedCopRef = firebase.database().ref('speedcops').push();
-            speedCopRef.set(speedCopData)
-                .then(() => {
-                    alert('Speed cop location reported successfully! 🚨');
-                })
-                .catch(error => {
-                    console.error('Error reporting speed cop:', error);
-                    alert('Error reporting speed cop. Please try again.');
-                });
+            // Set up confirm button
+            document.getElementById('confirm-speedcop-report-btn').onclick = confirmSpeedCopReport;
         },
         (error) => {
             console.error('Geolocation error:', error);
-            alert('Unable to get your current location. Please try "Choose on Map" instead.');
+            showNotification('Unable to get your location. Try "Choose on Map" instead.', 'error');
         }
     );
+}
+
+function confirmSpeedCopReport() {
+    if (!pendingSpeedCopLocation) return;
+    
+    document.getElementById('speedcop-confirm-modal').classList.remove('active');
+    
+    // Save to Firebase
+    const speedCopData = {
+        lat: pendingSpeedCopLocation.lat,
+        lng: pendingSpeedCopLocation.lng,
+        reportedBy: currentUser.username,
+        timestamp: Date.now(),
+        expiresAt: Date.now() + (10 * 60 * 60 * 1000)
+    };
+    
+    const speedCopRef = firebase.database().ref('speedcops').push();
+    speedCopRef.set(speedCopData)
+        .then(() => {
+            showNotification('Speed cop reported successfully! 🚨', 'success');
+            pendingSpeedCopLocation = null;
+        })
+        .catch(error => {
+            console.error('Error reporting speed cop:', error);
+            showNotification('Error reporting speed cop. Please try again.', 'error');
+        });
+}
+
+function closeSpeedCopConfirmModal() {
+    document.getElementById('speedcop-confirm-modal').classList.remove('active');
+    pendingSpeedCopLocation = null;
 }
 
 function chooseSpeedCopLocation() {

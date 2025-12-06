@@ -149,21 +149,44 @@
                 
                 <!-- Speed Cop Location Choice Modal -->
                 <div id="speedcop-choice-modal" class="modal">
-                    <div class="modal-content" style="max-width: 400px;">
-                        <h3 style="margin-top: 0; color: #ff4757;">📍 Report Speed Cop</h3>
-                        <p style="color: #666; margin-bottom: 30px;">How would you like to report the speed cop location?</p>
+                    <div class="modal-content" style="max-width: 400px; padding: 30px;">
+                        <h3 style="margin-top: 0; margin-bottom: 10px; color: #333; text-align: center;">📍 Report Speed Cop</h3>
+                        <p style="color: #666; margin-bottom: 30px; text-align: center; font-size: 14px;">How would you like to report the location?</p>
                         
-                        <button onclick="placeSpeedCopHere()" style="width: 100%; padding: 15px; margin-bottom: 15px; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 16px; display: flex; align-items: center; justify-content: center; gap: 10px;">
-                            <span style="font-size: 24px;">📍</span>
-                            <span>Place Marker Here</span>
+                        <button onclick="placeSpeedCopHere()" style="width: 100%; padding: 20px; margin-bottom: 15px; background: white; color: #333; border: 2px solid #e0e0e0; border-radius: 16px; cursor: pointer; font-weight: 600; font-size: 16px; display: flex; align-items: center; gap: 15px; transition: all 0.3s; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                            <span style="font-size: 32px;">📍</span>
+                            <div style="text-align: left; flex: 1;">
+                                <div style="font-size: 16px; font-weight: 700; color: #333; margin-bottom: 4px;">Place Marker Here</div>
+                                <div style="font-size: 13px; color: #999; font-weight: 400;">Use your current location</div>
+                            </div>
                         </button>
                         
-                        <button onclick="chooseSpeedCopLocation()" style="width: 100%; padding: 15px; margin-bottom: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 16px; display: flex; align-items: center; justify-content: center; gap: 10px;">
-                            <span style="font-size: 24px;">🗺️</span>
-                            <span>Choose on Map</span>
+                        <button onclick="chooseSpeedCopLocation()" style="width: 100%; padding: 20px; margin-bottom: 20px; background: white; color: #333; border: 2px solid #e0e0e0; border-radius: 16px; cursor: pointer; font-weight: 600; font-size: 16px; display: flex; align-items: center; gap: 15px; transition: all 0.3s; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                            <span style="font-size: 32px;">🗺️</span>
+                            <div style="text-align: left; flex: 1;">
+                                <div style="font-size: 16px; font-weight: 700; color: #333; margin-bottom: 4px;">Choose on Map</div>
+                                <div style="font-size: 13px; color: #999; font-weight: 400;">Select any location manually</div>
+                            </div>
                         </button>
                         
-                        <button onclick="closeSpeedCopChoiceModal()" style="width: 100%; padding: 12px; background: #f1f2f6; color: #666; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                        <button onclick="closeSpeedCopChoiceModal()" style="width: 100%; padding: 14px; background: #f8f9fa; color: #666; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 15px; transition: all 0.3s;">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Speed Cop Confirmation Modal -->
+                <div id="speedcop-confirm-modal" class="modal">
+                    <div class="modal-content" style="max-width: 350px; padding: 30px; text-align: center;">
+                        <div style="font-size: 64px; margin-bottom: 15px;">🚨</div>
+                        <h3 style="margin: 0 0 10px 0; color: #333;">Report Speed Cop?</h3>
+                        <p style="color: #666; margin-bottom: 25px; font-size: 14px;">This will place a speed cop marker at your current location.</p>
+                        
+                        <button id="confirm-speedcop-report-btn" style="width: 100%; padding: 14px; margin-bottom: 10px; background: linear-gradient(135deg, #ff4757 0%, #ff6348 100%); color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 15px; transition: all 0.3s;">
+                            Confirm Report
+                        </button>
+                        
+                        <button onclick="closeSpeedCopConfirmModal()" style="width: 100%; padding: 14px; background: #f8f9fa; color: #666; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 15px; transition: all 0.3s;">
                             Cancel
                         </button>
                     </div>
@@ -210,10 +233,19 @@
                 <div class="modal-body">
                     <div id="product-detail-images" class="product-detail-images"></div>
                     <div id="product-detail-info" class="product-detail-info"></div>
+                    <div id="product-location-button-container"></div>
                     <hr style="margin: 20px 0;">
                     <div id="product-detail-seller" class="product-detail-seller"></div>
                 </div>
             </div>
+        </div>
+
+        <!-- Product Directions Map Modal -->
+        <div id="product-directions-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1001; background: white;">
+            <button onclick="closeDirectionsMap()" style="position: absolute; top: 20px; left: 20px; z-index: 1002; background: white; border: none; padding: 12px 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); cursor: pointer; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 20px;">←</span> Back
+            </button>
+            <div id="directions-map" style="width: 100%; height: 100%;"></div>
         </div>
 
         <!-- Seller Info Modal -->
