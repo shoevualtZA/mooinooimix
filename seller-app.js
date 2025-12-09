@@ -205,6 +205,14 @@ async function signup() {
         };
         localStorage.setItem('currentUser', JSON.stringify(currentUser));
         
+        // Check if user came from buyer page to leave a review
+        const pendingSeller = localStorage.getItem('pendingSeller');
+        if (pendingSeller) {
+            // Redirect back to buyer page
+            window.location.href = 'index.html';
+            return;
+        }
+        
         clearAuthForms();
         showMarketplace();
         loadProducts();
@@ -253,6 +261,14 @@ async function login() {
             userId: userData.userId
         };
         localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        
+        // Check if user came from buyer page to leave a review
+        const pendingSeller = localStorage.getItem('pendingSeller');
+        if (pendingSeller) {
+            // Redirect back to buyer page
+            window.location.href = 'index.html';
+            return;
+        }
         
         clearAuthForms();
         showMarketplace();
@@ -974,6 +990,11 @@ function loadProducts() {
     // Clean up any expired sold products first
     cleanupSoldProducts();
     
+    if (!currentUser) {
+        alert('Please log in to view your products');
+        return;
+    }
+    
     const productsRef = firebase.database().ref('products');
     const productsGrid = document.getElementById('products-grid');
     const loadingSpinner = document.getElementById('loading-spinner');
@@ -985,7 +1006,8 @@ function loadProducts() {
     // Remove any existing listeners first
     productsRef.off('value');
     
-    productsRef.orderByChild('timestamp').on('value', (snapshot) => {
+    // Filter to only show current user's products
+    productsRef.orderByChild('sellerId').equalTo(currentUser.userId).on('value', (snapshot) => {
         // Hide loading spinner
         loadingSpinner.style.display = 'none';
         productsGrid.innerHTML = '';
@@ -994,7 +1016,7 @@ function loadProducts() {
             productsGrid.innerHTML = `
                 <div class="empty-state">
                     <p>📦</p>
-                    <p>No products yet. Be the first to post!</p>
+                    <p>No products yet. Click "+ Add Product" to post your first item!</p>
                 </div>
             `;
             return;
@@ -1058,6 +1080,11 @@ function loadBusinesses() {
     // Clean up any expired sold products first
     cleanupSoldProducts();
     
+    if (!currentUser) {
+        alert('Please log in to view your businesses');
+        return;
+    }
+    
     const businessesRef = firebase.database().ref('businesses');
     const businessGrid = document.getElementById('business-grid');
     const loadingSpinner = document.getElementById('loading-spinner');
@@ -1069,7 +1096,8 @@ function loadBusinesses() {
     // Remove any existing listeners first
     businessesRef.off('value');
     
-    businessesRef.orderByChild('timestamp').on('value', (snapshot) => {
+    // Filter to only show current user's businesses
+    businessesRef.orderByChild('sellerId').equalTo(currentUser.userId).on('value', (snapshot) => {
         // Hide loading spinner
         loadingSpinner.style.display = 'none';
         businessGrid.innerHTML = '';
@@ -1078,7 +1106,7 @@ function loadBusinesses() {
             businessGrid.innerHTML = `
                 <div class="empty-state">
                     <p>💼</p>
-                    <p>No businesses yet. Be the first to add your business!</p>
+                    <p>No businesses yet. Click "+ Add Business" to post your first business!</p>
                 </div>
             `;
             return;
@@ -1159,19 +1187,36 @@ function createProductCard(product) {
         const ratingStars = avgRating > 0 ? '⭐'.repeat(Math.round(avgRating)) : '';
         const ratingText = avgRating > 0 ? `${avgRating} (${reviewCount})` : 'No reviews';
         
+        // Check if this is the current user's product
+        const isOwner = currentUser && product.sellerId === currentUser.userId;
+        const ownerButtons = isOwner ? `
+            <div class="product-owner-buttons" style="display: flex; gap: 8px; padding: 10px; border-top: 1px solid #eee; margin-top: 10px;">
+                <button onclick="editProduct('${product.id}'); event.stopPropagation();" style="flex: 1; background: #3498db; color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px;">
+                    ✏️ Edit
+                </button>
+                ${product.sold !== true ? `
+                <button onclick="markAsSold('${product.id}', '${escapeHtml(product.name)}'); event.stopPropagation();" style="flex: 1; background: #2ecc71; color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px;">
+                    ✓ Sold
+                </button>
+                ` : ''}
+                <button onclick="deleteMyProduct('${product.id}', '${escapeHtml(product.name)}'); event.stopPropagation();" style="background: #e74c3c; color: white; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px;">
+                    🗑️
+                </button>
+            </div>
+        ` : '';
+        
         card.innerHTML = `
             ${imageHtml}
             <div class="product-card-info">
                 <div class="product-card-header">
                     <div class="product-name">${escapeHtml(product.name)}</div>
-                    <button class="bookmark-btn ${isBookmarked ? 'bookmarked' : ''}" onclick="toggleBookmark('${product.id}', event)">
-                        ${isBookmarked ? '⭐' : '☆'}
-                    </button>
+                    <div class="product-price" style="color: #4facfe; font-weight: 700; font-size: 18px;">$${formattedPrice}</div>
                 </div>
                 <div class="product-card-rating">
                     ${ratingStars} ${ratingText}
                 </div>
             </div>
+            ${ownerButtons}
         `;
     });
     
@@ -1179,6 +1224,7 @@ function createProductCard(product) {
     card.addEventListener('click', (e) => {
         if (!e.target.classList.contains('bookmark-btn') && 
             !e.target.closest('.bookmark-btn') &&
+            !e.target.closest('button') &&
             !e.target.classList.contains('seller-badge-btn') &&
             !e.target.closest('.seller-badge-btn') &&
             !e.target.classList.contains('product-image')) {
@@ -1222,6 +1268,19 @@ function createBusinessCard(business) {
         const ratingStars = avgRating > 0 ? '⭐'.repeat(Math.round(avgRating)) : '';
         const ratingText = avgRating > 0 ? `${avgRating} (${reviewCount})` : 'No reviews';
         
+        // Check if this is the current user's business
+        const isOwner = currentUser && business.sellerId === currentUser.userId;
+        const ownerButtons = isOwner ? `
+            <div class="product-owner-buttons" style="display: flex; gap: 8px; padding: 10px; border-top: 1px solid #eee; margin-top: 10px;">
+                <button onclick="editBusiness('${business.id}'); event.stopPropagation();" style="flex: 1; background: #3498db; color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px;">
+                    ✏️ Edit
+                </button>
+                <button onclick="deleteMyBusiness('${business.id}', '${escapeHtml(business.name)}'); event.stopPropagation();" style="background: #e74c3c; color: white; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px;">
+                    🗑️
+                </button>
+            </div>
+        ` : '';
+        
         card.innerHTML = `
             <div class="business-card-header">
                 <button class="bookmark-btn ${isBookmarked ? 'bookmarked' : ''}" onclick="toggleBookmark('${business.id}', event)">
@@ -1233,11 +1292,14 @@ function createBusinessCard(business) {
             <div class="business-card-rating">
                 ${ratingStars} ${ratingText}
             </div>
+            <div class="business-price" style="color: #4facfe; font-weight: 700; font-size: 18px; padding: 10px;">$${formattedPrice}</div>
+            ${ownerButtons}
         `;
     });
     
     card.onclick = (e) => {
         if (!e.target.classList.contains('bookmark-btn') && 
+            !e.target.closest('button') &&
             !e.target.classList.contains('seller-badge-btn') &&
             !e.target.classList.contains('view-details-btn') &&
             !e.target.closest('.seller-badge-btn')) {
@@ -1351,39 +1413,168 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Settings Functions
-function showSettings() {
-    document.getElementById('settings-modal').classList.add('active');
-    showSettingsTab('my-posts');
+function showAnalytics() {
+    // Hide main menu and show analytics view
+    document.getElementById('main-menu').style.display = 'none';
+    document.getElementById('main-header').style.display = 'none';
+    document.getElementById('analytics-view').style.display = 'block';
+    
+    // Load analytics data
+    if (currentUser) {
+        loadAnalytics();
+    }
 }
 
-function closeSettings() {
-    document.getElementById('settings-modal').classList.remove('active');
+function closeAnalytics() {
+    document.getElementById('analytics-view').style.display = 'none';
+    document.getElementById('main-header').style.display = 'block';
+    showMainMenu();
 }
 
-function showSettingsTab(tab) {
-    // Update tab buttons
-    document.querySelectorAll('.settings-tab').forEach(btn => btn.classList.remove('active'));
-    event.target.classList.add('active');
+function loadAnalytics() {
+    if (!currentUser) return;
     
-    // Show/hide content
-    document.getElementById('my-posts-tab').style.display = tab === 'my-posts' ? 'block' : 'none';
-    document.getElementById('my-businesses-tab').style.display = tab === 'my-businesses' ? 'block' : 'none';
-    document.getElementById('bookmarks-tab').style.display = tab === 'bookmarks' ? 'block' : 'none';
-    document.getElementById('contact-info-tab').style.display = tab === 'contact-info' ? 'block' : 'none';
-    document.getElementById('reviews-tab').style.display = tab === 'reviews' ? 'block' : 'none';
+    let totalProducts = 0;
+    let totalBusinesses = 0;
+    let totalViews = 0;
+    let itemsSold = 0;
     
-    if (tab === 'my-posts') {
-        loadUserPosts();
-    } else if (tab === 'my-businesses') {
-        loadUserBusinesses();
-    } else if (tab === 'bookmarks') {
-        loadBookmarks();
-    } else if (tab === 'contact-info') {
-        loadContactInfo();
-    } else if (tab === 'reviews') {
+    // Load products analytics
+    firebase.database().ref('products').orderByChild('sellerId').equalTo(currentUser.userId).once('value', (snapshot) => {
+        const productsList = document.getElementById('analytics-products-list');
+        productsList.innerHTML = '';
+        
+        const products = [];
+        
+        if (snapshot.exists()) {
+            snapshot.forEach((child) => {
+                const product = { id: child.key, ...child.val() };
+                products.push(product);
+                totalProducts++;
+                totalViews += product.views || 0;
+                if (product.sold === true) itemsSold++;
+            });
+            
+            // Sort by views
+            products.sort((a, b) => (b.views || 0) - (a.views || 0));
+            
+            products.forEach(product => {
+                const statusBadge = product.sold ? '<span style="background: #2ecc71; color: white; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600;">SOLD</span>' : '<span style="background: #4facfe; color: white; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600;">ACTIVE</span>';
+                
+                productsList.innerHTML += `
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; color: #333; margin-bottom: 5px;">${escapeHtml(product.name)}</div>
+                            <div style="font-size: 13px; color: #666;">$${product.price.toFixed(2)} • ${product.category}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 20px; font-weight: 700; color: #4facfe; margin-bottom: 5px;">${product.views || 0}</div>
+                            <div style="font-size: 12px; color: #999;">views</div>
+                        </div>
+                        <div style="margin-left: 15px;">
+                            ${statusBadge}
+                        </div>
+                    </div>
+                `;
+            });
+        } else {
+            productsList.innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">No products yet</div>';
+        }
+        
+        // Update summary
+        document.getElementById('analytics-total-products').textContent = totalProducts;
+        document.getElementById('analytics-items-sold').textContent = itemsSold;
+        
+        // Load businesses analytics
+        loadBusinessesAnalytics(totalViews);
+    });
+}
+
+function loadBusinessesAnalytics(productViews) {
+    if (!currentUser) return;
+    
+    let totalBusinesses = 0;
+    let businessViews = 0;
+    
+    firebase.database().ref('businesses').orderByChild('sellerId').equalTo(currentUser.userId).once('value', (snapshot) => {
+        const businessesList = document.getElementById('analytics-businesses-list');
+        businessesList.innerHTML = '';
+        
+        const businesses = [];
+        
+        if (snapshot.exists()) {
+            snapshot.forEach((child) => {
+                const business = { id: child.key, ...child.val() };
+                businesses.push(business);
+                totalBusinesses++;
+                businessViews += business.views || 0;
+            });
+            
+            // Sort by views
+            businesses.sort((a, b) => (b.views || 0) - (a.views || 0));
+            
+            businesses.forEach(business => {
+                businessesList.innerHTML += `
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; color: #333; margin-bottom: 5px;">${escapeHtml(business.name)}</div>
+                            <div style="font-size: 13px; color: #666;">${escapeHtml(business.businessEmail)}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 20px; font-weight: 700; color: #00bfa5; margin-bottom: 5px;">${business.views || 0}</div>
+                            <div style="font-size: 12px; color: #999;">views</div>
+                        </div>
+                    </div>
+                `;
+            });
+        } else {
+            businessesList.innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">No businesses yet</div>';
+        }
+        
+        // Update summary
+        document.getElementById('analytics-total-businesses').textContent = totalBusinesses;
+        document.getElementById('analytics-total-views').textContent = productViews + businessViews;
+    });
+}
+
+function showMyReviews() {
+    // Hide main menu and show reviews view
+    document.getElementById('main-menu').style.display = 'none';
+    document.getElementById('main-header').style.display = 'none';
+    document.getElementById('reviews-view').style.display = 'block';
+    
+    // Load reviews data
+    if (currentUser) {
         loadMyReviews();
     }
 }
+
+function closeReviewsView() {
+    document.getElementById('reviews-view').style.display = 'none';
+    document.getElementById('main-header').style.display = 'block';
+    showMainMenu();
+}
+
+function showSettings() {
+    // Hide main menu and show settings view
+    document.getElementById('main-menu').style.display = 'none';
+    document.getElementById('main-header').style.display = 'none';
+    document.getElementById('settings-view').style.display = 'block';
+    
+    // Load settings data
+    if (currentUser) {
+        document.getElementById('settings-username').textContent = currentUser.username;
+        loadContactInfo();
+    }
+}
+
+function closeSettings() {
+    document.getElementById('settings-view').style.display = 'none';
+    document.getElementById('main-header').style.display = 'block';
+    showMainMenu();
+}
+
+// Removed old tab-based settings
 
 function loadUserPosts() {
     if (!currentUser) return;
@@ -1452,7 +1643,10 @@ function createUserProductCard(product) {
         <div class="product-description">${escapeHtml(product.description)}</div>
         <div class="product-footer" style="display: flex; gap: 10px; flex-wrap: wrap;">
             <span class="product-category">${escapeHtml(product.category)}</span>
-            <div style="display: flex; gap: 10px; margin-left: auto;">
+            <div style="display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap;">
+                <button class="btn-edit" onclick="editProduct('${product.id}')" style="background: #3498db; color: white; border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 5px;">
+                    ✏️ Edit
+                </button>
                 ${!isSold ? `<button class="btn-sold" onclick="markAsSold('${product.id}', '${escapeHtml(product.name)}')" style="background: #2ecc71; color: white; border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 5px;">
                     ✓ Mark as Sold
                 </button>` : `<button class="btn-repost" onclick="repostProduct('${product.id}', '${escapeHtml(product.name)}')" style="background: #3498db; color: white; border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 5px;">
@@ -1531,17 +1725,22 @@ function createUserBusinessCard(business) {
             <div class="contact-item-small">📱 ${escapeHtml(business.businessPhone)}</div>
             <div class="contact-item-small">📍 ${escapeHtml(business.businessAddress)}</div>
         </div>
-        <div class="product-footer">
+        <div class="product-footer" style="display: flex; gap: 10px; flex-wrap: wrap;">
             <span class="product-category">Business</span>
-            <button class="btn-delete" onclick="deleteMyBusiness('${business.id}', '${escapeHtml(business.name)}')">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="3 6 5 6 21 6"></polyline>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                    <line x1="10" y1="11" x2="10" y2="17"></line>
-                    <line x1="14" y1="11" x2="14" y2="17"></line>
-                </svg>
-                Delete
-            </button>
+            <div style="display: flex; gap: 8px; margin-left: auto;">
+                <button class="btn-edit" onclick="editBusiness('${business.id}')" style="background: #3498db; color: white; border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 5px;">
+                    ✏️ Edit
+                </button>
+                <button class="btn-delete" onclick="deleteMyBusiness('${business.id}', '${escapeHtml(business.name)}')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        <line x1="10" y1="11" x2="10" y2="17"></line>
+                        <line x1="14" y1="11" x2="14" y2="17"></line>
+                    </svg>
+                    Delete
+                </button>
+            </div>
         </div>
     `;
     
@@ -1650,6 +1849,130 @@ function repostProduct(productId, productName) {
         });
 }
 
+function editProduct(productId) {
+    firebase.database().ref('products/' + productId).once('value', (snapshot) => {
+        if (!snapshot.exists()) {
+            alert('Product not found');
+            return;
+        }
+        
+        const product = snapshot.val();
+        
+        // Populate the form with existing data
+        document.getElementById('product-name').value = product.name;
+        document.getElementById('product-description').value = product.description;
+        document.getElementById('product-price').value = product.price;
+        document.getElementById('product-category').value = product.category;
+        
+        // Store the product ID for updating
+        document.getElementById('add-product-modal').dataset.editingId = productId;
+        
+        // Change button text to "Update Product"
+        const addBtn = document.querySelector('#add-product-modal .btn-primary');
+        addBtn.textContent = 'Update Product';
+        addBtn.onclick = () => updateProduct(productId);
+        
+        // Open the modal
+        showAddProduct();
+    });
+}
+
+function editBusiness(businessId) {
+    firebase.database().ref('businesses/' + businessId).once('value', (snapshot) => {
+        if (!snapshot.exists()) {
+            alert('Business not found');
+            return;
+        }
+        
+        const business = snapshot.val();
+        
+        // Populate the form with existing data
+        document.getElementById('product-name').value = business.name;
+        document.getElementById('product-description').value = business.description;
+        document.getElementById('product-price').value = business.price;
+        document.getElementById('product-category').value = 'business';
+        document.getElementById('business-email').value = business.businessEmail;
+        document.getElementById('business-phone').value = business.businessPhone;
+        document.getElementById('business-address').value = business.businessAddress;
+        document.getElementById('business-website').value = business.businessWebsite || '';
+        
+        handleCategorySelection();
+        
+        // Store the business ID for updating
+        document.getElementById('add-product-modal').dataset.editingId = businessId;
+        
+        // Change button text to "Update Business"
+        const addBtn = document.querySelector('#add-product-modal .btn-primary');
+        addBtn.textContent = 'Update Business';
+        addBtn.onclick = () => updateBusiness(businessId);
+        
+        // Open the modal
+        showAddProduct();
+    });
+}
+
+async function updateProduct(productId) {
+    const name = document.getElementById('product-name').value.trim();
+    const description = document.getElementById('product-description').value.trim();
+    const price = parseFloat(document.getElementById('product-price').value);
+    
+    if (!name || !description || !price || price <= 0) {
+        alert('Please fill in all fields with valid values');
+        return;
+    }
+    
+    const updates = {
+        name: name,
+        description: description,
+        price: price
+    };
+    
+    try {
+        await firebase.database().ref('products/' + productId).update(updates);
+        alert('Product updated successfully!');
+        closeAddProduct();
+        loadProducts();
+    } catch (error) {
+        console.error('Error updating product:', error);
+        alert('Error updating product: ' + error.message);
+    }
+}
+
+async function updateBusiness(businessId) {
+    const name = document.getElementById('product-name').value.trim();
+    const description = document.getElementById('product-description').value.trim();
+    const price = parseFloat(document.getElementById('product-price').value);
+    const email = document.getElementById('business-email').value.trim();
+    const phone = document.getElementById('business-phone').value.trim();
+    const address = document.getElementById('business-address').value.trim();
+    const website = document.getElementById('business-website').value.trim();
+    
+    if (!name || !description || !price || !email || !phone || !address) {
+        alert('Please fill in all required fields');
+        return;
+    }
+    
+    const updates = {
+        name: name,
+        description: description,
+        price: price,
+        businessEmail: email,
+        businessPhone: phone,
+        businessAddress: address,
+        businessWebsite: website
+    };
+    
+    try {
+        await firebase.database().ref('businesses/' + businessId).update(updates);
+        alert('Business updated successfully!');
+        closeAddProduct();
+        loadBusinesses();
+    } catch (error) {
+        console.error('Error updating business:', error);
+        alert('Error updating business: ' + error.message);
+    }
+}
+
 function deleteMyProduct(productId, productName) {
     if (!confirm(`Are you sure you want to delete "${productName}"?`)) {
         return;
@@ -1658,7 +1981,7 @@ function deleteMyProduct(productId, productName) {
     firebase.database().ref('products/' + productId).remove()
         .then(() => {
             alert('Product deleted successfully');
-            loadUserPosts(); // Reload the list
+            loadProducts(); // Reload the main grid
         })
         .catch((error) => {
             console.error('Error deleting product:', error);
@@ -1674,7 +1997,7 @@ function deleteMyBusiness(businessId, businessName) {
     firebase.database().ref('businesses/' + businessId).remove()
         .then(() => {
             alert('Business deleted successfully');
-            loadUserBusinesses(); // Reload the list
+            loadBusinesses(); // Reload the main grid
         })
         .catch((error) => {
             console.error('Error deleting business:', error);
@@ -2056,6 +2379,13 @@ function loadMyReviews() {
         
         if (!snapshot.exists()) {
             reviewsList.innerHTML = '<div class="empty-state"><p>⭐</p><p>No reviews yet</p></div>';
+            
+            // Update summary stats
+            const avgDisplay = document.getElementById('avg-rating-display');
+            const totalDisplay = document.getElementById('total-reviews-display');
+            if (avgDisplay) avgDisplay.textContent = '-';
+            if (totalDisplay) totalDisplay.textContent = '0';
+            
             return;
         }
         
@@ -2073,28 +2403,28 @@ function loadMyReviews() {
         const avgRating = (totalStars / reviewCount).toFixed(1);
         const stars = '⭐'.repeat(Math.round(avgRating));
         
-        let html = `
-            <div class="seller-rating">
-                <h3>Your Overall Rating</h3>
-                <div class="rating-stars">${stars}</div>
-                <div class="rating-count">${avgRating} out of 5 (${reviewCount} reviews)</div>
-            </div>
-        `;
+        // Update summary stats in the reviews view
+        const avgDisplay = document.getElementById('avg-rating-display');
+        const totalDisplay = document.getElementById('total-reviews-display');
+        if (avgDisplay) avgDisplay.textContent = avgRating;
+        if (totalDisplay) totalDisplay.textContent = reviewCount;
+        
+        let html = '';
         
         reviews.reverse().forEach(review => {
             const reviewStars = '★'.repeat(review.rating) + '☆'.repeat(5 - review.rating);
             const date = review.timestamp ? new Date(review.timestamp).toLocaleDateString() : 'Unknown';
             
             html += `
-                <div class="review-item">
-                    <div class="review-header">
+                <div style="background: #f8f9fa; padding: 20px; border-radius: 12px; margin-bottom: 15px;">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
                         <div>
-                            <div class="review-author">${escapeHtml(review.reviewer)}</div>
-                            <div class="review-date">${date}</div>
+                            <div style="font-weight: 600; color: #333; margin-bottom: 5px;">${escapeHtml(review.reviewer)}</div>
+                            <div style="font-size: 12px; color: #999;">${date}</div>
                         </div>
-                        <div class="review-stars">${reviewStars}</div>
+                        <div style="color: #ffd700; font-size: 18px;">${reviewStars}</div>
                     </div>
-                    ${review.text ? `<div class="review-text">${escapeHtml(review.text)}</div>` : ''}
+                    ${review.text ? `<div style="color: #666; font-size: 14px; line-height: 1.6;">${escapeHtml(review.text)}</div>` : ''}
                 </div>
             `;
         });
@@ -2305,6 +2635,14 @@ function showProductDetail(product) {
             
             // Show different info for businesses vs products
             if (product.category === 'business') {
+                // Check if current user is the owner
+                const isOwner = currentUser && currentUser.username === product.seller;
+                const reviewButton = isOwner ? '' : `
+                    <button class="btn-primary" onclick="showBusinessReviewModal('${product.id}', '${escapeHtml(product.name)}')" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
+                        ⭐ Write a Review
+                    </button>
+                `;
+                
                 sellerDiv.innerHTML = `
                     <h3>Business Rating</h3>
                     <div style="padding: 15px; background: #f8f9fa; border-radius: 12px; margin-bottom: 15px;">
@@ -2316,25 +2654,44 @@ function showProductDetail(product) {
                             </div>
                         </div>
                     </div>
-                    <button class="btn-primary" onclick="showBusinessReviewModal('${product.id}', '${escapeHtml(product.name)}')" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
-                        ⭐ Write a Review
-                    </button>
+                    ${reviewButton}
                 `;
             } else {
-                sellerDiv.innerHTML = `
-                    <h3>Seller Information</h3>
-                    <button class="seller-detail-btn" onclick="showSellerInfo('${escapeHtml(product.seller)}', event)">
-                        <div class="seller-detail-left">
-                            <span class="seller-icon-large">👤</span>
-                            <div>
-                                <div class="seller-name-large">${escapeHtml(product.seller)}</div>
-                                <div class="seller-rating">${ratingStars} ${ratingText}</div>
+                // Check if current user is the owner
+                const isOwner = currentUser && currentUser.username === product.seller;
+                
+                if (isOwner) {
+                    // Owner viewing their own product - just show rating, no review button
+                    sellerDiv.innerHTML = `
+                        <h3>Seller Information</h3>
+                        <div style="padding: 15px; background: #f8f9fa; border-radius: 12px;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span class="seller-icon-large">👤</span>
+                                <div>
+                                    <div class="seller-name-large">${escapeHtml(product.seller)}</div>
+                                    <div class="seller-rating">${ratingStars} ${ratingText}</div>
+                                </div>
                             </div>
                         </div>
-                        <div class="seller-detail-arrow">View Profile →</div>
-                    </button>
-                    ${contactHtml}
-                `;
+                        ${contactHtml}
+                    `;
+                } else {
+                    // Other user viewing product
+                    sellerDiv.innerHTML = `
+                        <h3>Seller Information</h3>
+                        <button class="seller-detail-btn" onclick="showSellerInfo('${escapeHtml(product.seller)}', event)">
+                            <div class="seller-detail-left">
+                                <span class="seller-icon-large">👤</span>
+                                <div>
+                                    <div class="seller-name-large">${escapeHtml(product.seller)}</div>
+                                    <div class="seller-rating">${ratingStars} ${ratingText}</div>
+                                </div>
+                            </div>
+                            <div class="seller-detail-arrow">View Profile →</div>
+                        </button>
+                        ${contactHtml}
+                    `;
+                }
             }
         });
     });

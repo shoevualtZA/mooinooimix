@@ -222,7 +222,7 @@ body {
 
 .content {
     flex: 1;
-    padding: 20px;
+    padding: 0 20px 70px 20px;
     overflow-y: auto;
 }
 
@@ -497,12 +497,17 @@ body {
 }
 
 .user-info {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
     padding: 15px 20px;
     background: #f8f8f8;
     border-top: 1px solid #e0e0e0;
     text-align: center;
     font-size: 14px;
     color: #666;
+    z-index: 10;
 }
 
 .user-info strong {
@@ -998,6 +1003,34 @@ body {
     .modal-content {
         max-width: 100%;
         margin: 0;
+        border-radius: 0;
+    }
+    
+    /* Seller info modal mobile styles */
+    #seller-info-modal .modal-body {
+        padding: 15px;
+    }
+    
+    #seller-info-modal #review-section > div {
+        padding: 20px 15px !important;
+        margin-bottom: 20px !important;
+    }
+    
+    #seller-info-modal #review-section h3 {
+        font-size: 18px !important;
+    }
+    
+    #seller-info-modal #review-section button {
+        padding: 14px 20px !important;
+        font-size: 15px !important;
+    }
+    
+    #seller-info-modal #review-section .star-rating {
+        justify-content: flex-start;
+    }
+    
+    #seller-info-modal #review-section textarea {
+        font-size: 16px !important;
     }
     
     .settings-tabs {
@@ -1093,6 +1126,16 @@ body {
     
     .modal-body {
         padding: 15px;
+    }
+    
+    /* Product detail modal mobile */
+    #product-detail-modal .modal-body > div {
+        padding: 15px !important;
+    }
+    
+    #product-detail-modal .product-detail-meta {
+        grid-template-columns: 1fr !important;
+        gap: 10px !important;
     }
     
     .seller-products-grid {

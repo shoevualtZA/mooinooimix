@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MooiNooiMix - Browse Marketplace</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛍️</text></svg>">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="phone-container">
+        <!-- Marketplace View (No Auth Required) -->
+        <div id="marketplace-view" class="view">
+            <div class="header" id="main-header">
+                <h1>🛍️ MooiNooiMix</h1>
+                <div class="header-icons">
+                    <button class="btn-icon" onclick="window.location.href='index.html'" title="Back to Home">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="content">
+                <!-- Main Menu (shown by default) -->
+                <div id="main-menu" class="main-menu">
+                    <div class="menu-card" onclick="filterCategory('market')">
+                        <div class="menu-icon">🛍️</div>
+                        <h3>Market</h3>
+                        <p>Browse and buy products</p>
+                    </div>
+                    <div class="menu-card" onclick="filterCategory('location')">
+                        <div class="menu-icon">📍</div>
+                        <h3>Location</h3>
+                        <p>View map of listings</p>
+                    </div>
+                    <div class="menu-card" onclick="filterCategory('business')">
+                        <div class="menu-icon">🏢</div>
+                        <h3>Business Ads</h3>
+                        <p>Explore local businesses</p>
+                    </div>
+                    <div class="menu-card" onclick="filterCategory('hall-monitor')">
+                        <div class="menu-icon">🚨</div>
+                        <h3>Hall Monitor</h3>
+                        <p>Report and view speed cops</p>
+                    </div>
+                </div>
+
+                <!-- Category View Header -->
+                <div id="category-header" style="display: none; margin-bottom: 20px;">
+                    <button onclick="showMainMenu()" style="background: white; border: 2px solid #4facfe; color: #4facfe; padding: 10px 20px; border-radius: 12px; cursor: pointer; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; margin-bottom: 15px;">
+                        <span style="font-size: 18px;">←</span> Back to Menu
+                    </button>
+                </div>
+
+                <!-- Loading Spinner -->
+                <div id="loading-spinner" class="loading-spinner" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Loading...</p>
+                </div>
+
+                <!-- Products Grid -->
+                <div id="products-grid" class="products-grid" style="display: none;">
+                    <!-- Products will be loaded here -->
+                </div>
+                
+                <!-- Business Grid (only shown for business category) -->
+                <div id="business-grid" class="products-grid" style="display: none;">
+                    <!-- Businesses will be loaded here -->
+                </div>
+                
+                <!-- Location Map View (only shown for location category) -->
+                <div id="location-map-view" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; background: white;">
+                    <button onclick="closeLocationMap()" style="position: absolute; top: 20px; left: 20px; z-index: 1000; background: white; border: none; padding: 12px 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); cursor: pointer; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 20px;">←</span> Back
+                    </button>
+                    <div id="location-map-filters" style="position: absolute; top: 20px; right: 20px; z-index: 1000; background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+                        <label style="display: flex; align-items: center; margin-bottom: 10px; cursor: pointer;">
+                            <input type="checkbox" id="show-products" checked style="margin-right: 8px; width: 18px; height: 18px;">
+                            <span style="font-weight: 600;">🛍️ Products</span>
+                        </label>
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="checkbox" id="show-businesses" checked style="margin-right: 8px; width: 18px; height: 18px;">
+                            <span style="font-weight: 600;">🏢 Businesses</span>
+                        </label>
+                    </div>
+                    <div id="location-main-map" style="width: 100%; height: 100%;"></div>
+                </div>
+                
+                <!-- Hall Monitor View -->
+                <div id="hall-monitor-view" style="display: none;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                        <div class="hall-monitor-card" onclick="showAddSpeedCop()">
+                            <div class="menu-icon" style="font-size: 48px;">📍</div>
+                            <h3>Add Speed Cop</h3>
+                            <p>Report a speed cop location</p>
+                        </div>
+                        <div class="hall-monitor-card" onclick="showSpeedCopMap()">
+                            <div class="menu-icon" style="font-size: 48px;">🗺️</div>
+                            <h3>View Speed Cops</h3>
+                            <p>See all reported locations</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Speed Cop views (same as original) -->
+                <div id="speedcop-choice-modal" class="modal">
+                    <div class="modal-content" style="max-width: 400px; padding: 30px;">
+                        <h3 style="margin-top: 0; margin-bottom: 10px; color: #333; text-align: center;">📍 Report Speed Cop</h3>
+                        <p style="color: #666; margin-bottom: 30px; text-align: center; font-size: 14px;">How would you like to report the location?</p>
+                        
+                        <button onclick="placeSpeedCopHere()" style="width: 100%; padding: 20px; margin-bottom: 15px; background: white; color: #333; border: 2px solid #e0e0e0; border-radius: 16px; cursor: pointer; font-weight: 600; font-size: 16px; display: flex; align-items: center; gap: 15px; transition: all 0.3s; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                            <span style="font-size: 32px;">📍</span>
+                            <div style="text-align: left; flex: 1;">
+                                <div style="font-size: 16px; font-weight: 700; color: #333; margin-bottom: 4px;">Place Marker Here</div>
+                                <div style="font-size: 13px; color: #999; font-weight: 400;">Use your current location</div>
+                            </div>
+                        </button>
+                        
+                        <button onclick="chooseSpeedCopLocation()" style="width: 100%; padding: 20px; margin-bottom: 20px; background: white; color: #333; border: 2px solid #e0e0e0; border-radius: 16px; cursor: pointer; font-weight: 600; font-size: 16px; display: flex; align-items: center; gap: 15px; transition: all 0.3s; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                            <span style="font-size: 32px;">🗺️</span>
+                            <div style="text-align: left; flex: 1;">
+                                <div style="font-size: 16px; font-weight: 700; color: #333; margin-bottom: 4px;">Choose on Map</div>
+                                <div style="font-size: 13px; color: #999; font-weight: 400;">Select any location manually</div>
+                            </div>
+                        </button>
+                        
+                        <button onclick="closeSpeedCopChoiceModal()" style="width: 100%; padding: 14px; background: #f8f9fa; color: #666; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 15px; transition: all 0.3s;">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="speedcop-confirm-modal" class="modal">
+                    <div class="modal-content" style="max-width: 350px; padding: 30px; text-align: center;">
+                        <div style="font-size: 64px; margin-bottom: 15px;">🚨</div>
+                        <h3 style="margin: 0 0 10px 0; color: #333;">Report Speed Cop?</h3>
+                        <p style="color: #666; margin-bottom: 25px; font-size: 14px;">This will place a speed cop marker at your current location.</p>
+                        
+                        <button id="confirm-speedcop-report-btn" style="width: 100%; padding: 14px; margin-bottom: 10px; background: linear-gradient(135deg, #ff4757 0%, #ff6348 100%); color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 15px; transition: all 0.3s;">
+                            Confirm Report
+                        </button>
+                        
+                        <button onclick="closeSpeedCopConfirmModal()" style="width: 100%; padding: 14px; background: #f8f9fa; color: #666; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 15px; transition: all 0.3s;">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="add-speedcop-map-view" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; background: white;">
+                    <div style="position: absolute; top: 20px; left: 20px; right: 20px; z-index: 1000; display: flex; justify-content: space-between; align-items: flex-start; gap: 15px;">
+                        <button onclick="closeAddSpeedCopMap()" style="background: white; border: none; padding: 12px 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); cursor: pointer; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+                            <span style="font-size: 20px;">←</span> Back
+                        </button>
+                        <div id="add-speedcop-instructions" style="background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); flex-grow: 1; max-width: 300px;">
+                            <h4 style="margin: 0 0 10px 0; color: #ff4757;">📍 Tip-Off System</h4>
+                            <p style="margin: 0 0 10px 0; font-size: 13px; color: #666;">Click anywhere on the map to report a speed cop location</p>
+                            <button id="confirm-speedcop-btn" onclick="confirmSpeedCop()" disabled style="width: 100%; padding: 10px; background: #4facfe; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                                Confirm Location
+                            </button>
+                        </div>
+                    </div>
+                    <div id="add-speedcop-map" style="width: 100%; height: 100%;"></div>
+                </div>
+                
+                <div id="speedcop-map-view" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; background: white;">
+                    <button onclick="closeSpeedCopMap()" style="position: absolute; top: 20px; left: 20px; z-index: 1000; background: white; border: none; padding: 12px 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); cursor: pointer; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 20px;">←</span> Back
+                    </button>
+                    <div id="speedcop-map" style="width: 100%; height: 100%;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Product Detail Modal -->
+        <div id="product-detail-modal" class="modal">
+            <div class="modal-content" style="max-width: 900px;">
+                <div class="modal-header">
+                    <h2 id="product-detail-name">Product Details</h2>
+                    <button class="btn-close" onclick="closeProductDetail()">&times;</button>
+                </div>
+                <div class="modal-body" style="padding: 0;">
+                    <!-- Images Section -->
+                    <div id="product-detail-images" class="product-detail-images" style="padding: 20px 20px 0 20px;"></div>
+                    
+                    <!-- Main Content -->
+                    <div style="padding: 0 20px 20px 20px;">
+                        <!-- Description & Details -->
+                        <div id="product-detail-info" class="product-detail-info"></div>
+                        
+                        <!-- Location Button -->
+                        <div id="product-location-button-container"></div>
+                        
+                        <!-- Seller Information -->
+                        <div id="product-detail-seller" class="product-detail-seller"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Product Directions Map Modal -->
+        <div id="product-directions-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1001; background: white;">
+            <button onclick="closeDirectionsMap()" style="position: absolute; top: 20px; left: 20px; z-index: 1002; background: white; border: none; padding: 12px 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); cursor: pointer; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 20px;">←</span> Back
+            </button>
+            <div id="directions-map" style="width: 100%; height: 100%;"></div>
+        </div>
+
+        <!-- Seller Info Modal - LOGIN REQUIRED FOR REVIEWS -->
+        <div id="seller-info-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="seller-modal-name">Seller Info</h2>
+                    <button class="btn-close" onclick="closeSellerInfo()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <!-- Review Form Section (Top) - Dynamically populated -->
+                    <div id="review-section"></div>
+
+                    <!-- Seller Rating -->
+                    <div id="seller-rating" class="seller-rating" style="margin-bottom: 25px;"></div>
+
+                    <!-- Reviews List -->
+                    <div style="margin-bottom: 25px;">
+                        <h3 style="margin-bottom: 15px; color: #333;">📝 Customer Reviews</h3>
+                        <div id="seller-reviews-list"></div>
+                    </div>
+
+                    <!-- Other Products -->
+                    <div id="seller-products-preview" class="seller-products-preview"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- App Scripts -->
+    <script src="firebase-config.js"></script>
+    <script src="buyer-app.js"></script>
+</body>
+</html>

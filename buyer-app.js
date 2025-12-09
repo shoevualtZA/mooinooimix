@@ -16,20 +16,30 @@ function showNotification(message, type = 'info') {
     alert(message);
 }
 
-// Check if user is already logged in
+// No auth required for buyers - show marketplace directly
 function checkAuth() {
+    // Check if user is logged in from localStorage
     const savedUser = localStorage.getItem('currentUser');
     if (savedUser) {
         currentUser = JSON.parse(savedUser);
-        showMarketplace();
-        loadProducts();
-    } else {
-        showAuth();
     }
+    // Buyers don't need to log in
+    showMarketplace();
+    loadProducts();
 }
 
 // Initialize app
 checkAuth();
+
+// Check if returning from signup with pending seller
+const pendingSeller = localStorage.getItem('pendingSeller');
+if (pendingSeller && currentUser) {
+    localStorage.removeItem('pendingSeller');
+    // Wait for products to load, then open seller modal
+    setTimeout(() => {
+        showSellerInfo(pendingSeller);
+    }, 500);
+}
 
 // Image upload preview and location checkbox listener
 document.addEventListener('DOMContentLoaded', () => {
@@ -148,11 +158,7 @@ function showAuth() {
 }
 
 function showMarketplace() {
-    document.getElementById('auth-view').style.display = 'none';
     document.getElementById('marketplace-view').style.display = 'flex';
-    if (currentUser) {
-        document.getElementById('current-user').textContent = currentUser.username;
-    }
 }
 
 function showLogin() {
@@ -528,6 +534,9 @@ function loadMapMarkers() {
     firebase.database().ref('products').once('value', (snapshot) => {
         snapshot.forEach((childSnapshot) => {
             const product = { id: childSnapshot.key, ...childSnapshot.val() };
+            
+            // Skip sold products
+            if (product.sold === true) return;
             
             // Skip banned users
             firebase.database().ref('users/' + product.seller + '/banned').once('value', (banSnapshot) => {
@@ -1255,7 +1264,6 @@ function filterCategory(category) {
     const mainMenu = document.getElementById('main-menu');
     const mainHeader = document.getElementById('main-header');
     const categoryHeader = document.getElementById('category-header');
-    const addBtn = document.getElementById('add-btn');
     const productsGrid = document.getElementById('products-grid');
     const businessGrid = document.getElementById('business-grid');
     const locationMapView = document.getElementById('location-map-view');
@@ -1275,7 +1283,6 @@ function filterCategory(category) {
         initLocationMainMap();
     } else if (category === 'business') {
         categoryHeader.style.display = 'block';
-        addBtn.textContent = '+ Add Business';
         productsGrid.style.display = 'none';
         businessGrid.style.display = 'grid';
         locationMapView.style.display = 'none';
@@ -1284,7 +1291,6 @@ function filterCategory(category) {
         loadBusinesses();
     } else if (category === 'hall-monitor') {
         categoryHeader.style.display = 'block';
-        addBtn.style.display = 'none';
         productsGrid.style.display = 'none';
         businessGrid.style.display = 'none';
         locationMapView.style.display = 'none';
@@ -1292,7 +1298,6 @@ function filterCategory(category) {
         speedCopMapView.style.display = 'none';
     } else {
         categoryHeader.style.display = 'block';
-        addBtn.textContent = '+ Add Product';
         productsGrid.style.display = 'grid';
         businessGrid.style.display = 'none';
         locationMapView.style.display = 'none';
@@ -1332,12 +1337,7 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// Close modal when clicking outside
-document.getElementById('add-product-modal').addEventListener('click', (e) => {
-    if (e.target.id === 'add-product-modal') {
-        closeAddProduct();
-    }
-});
+// Buyers don't have add product modal
 
 document.addEventListener('DOMContentLoaded', () => {
     const settingsModal = document.getElementById('settings-modal');
@@ -1772,7 +1772,7 @@ let currentBusinessForReview = '';
 let isReviewingBusiness = false;
 
 function showSellerInfo(seller, event) {
-    event.stopPropagation();
+    if (event) event.stopPropagation();
     currentSellerForReview = seller;
     isReviewingBusiness = false;
     
@@ -1846,10 +1846,65 @@ function showSellerInfo(seller, event) {
     // Load reviews
     loadSellerReviews(seller);
     
-    // Reset review form
-    selectedRating = 0;
-    document.getElementById('review-text').value = '';
-    updateStarDisplay();
+    // Update review section based on login status
+    updateReviewSection();
+}
+
+function redirectToSignup() {
+    // Store the current seller being reviewed
+    if (currentSellerForReview) {
+        localStorage.setItem('pendingSeller', currentSellerForReview);
+    }
+    window.location.href = 'seller.html';
+}
+
+function updateReviewSection() {
+    const reviewSection = document.getElementById('review-section');
+    
+    if (!currentUser) {
+        // Not logged in - show login/signup prompt
+        reviewSection.innerHTML = `
+            <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 25px; border-radius: 16px; margin-bottom: 25px; text-align: center;">
+                <h3 style="color: white; margin: 0 0 15px 0; font-size: 20px;">⭐ Leave a Review</h3>
+                <p style="color: rgba(255,255,255,0.9); font-size: 14px; margin-bottom: 20px;">
+                    You need to be logged in as a seller to leave reviews
+                </p>
+                <button onclick="redirectToSignup()" style="background: white; color: #4facfe; border: none; padding: 12px 30px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 15px; transition: all 0.3s;">
+                    Log In / Sign Up
+                </button>
+            </div>
+        `;
+    } else {
+        // Logged in - show review form
+        reviewSection.innerHTML = `
+            <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 25px; border-radius: 16px; margin-bottom: 25px;">
+                <h3 style="color: white; margin: 0 0 15px 0; font-size: 20px;">⭐ Leave a Review</h3>
+                <div class="input-group" style="margin-bottom: 15px;">
+                    <label style="color: white; font-weight: 600; margin-bottom: 8px; display: block;">Rating</label>
+                    <div class="star-rating" id="review-stars" style="margin-bottom: 0;">
+                        <span class="star" onclick="setRating(1)">☆</span>
+                        <span class="star" onclick="setRating(2)">☆</span>
+                        <span class="star" onclick="setRating(3)">☆</span>
+                        <span class="star" onclick="setRating(4)">☆</span>
+                        <span class="star" onclick="setRating(5)">☆</span>
+                    </div>
+                </div>
+                <div class="input-group" style="margin-bottom: 15px;">
+                    <label style="color: white; font-weight: 600; margin-bottom: 8px; display: block;">Review (Optional)</label>
+                    <textarea id="review-text" placeholder="Share your experience with this seller..." rows="3" style="background: rgba(255,255,255,0.95); border: none; border-radius: 8px; padding: 12px; width: 100%; box-sizing: border-box;"></textarea>
+                </div>
+                <button class="btn btn-primary" onclick="submitReview()" style="background: white; color: #4facfe; border: none; padding: 12px 30px; border-radius: 8px; font-weight: 600; width: 100%; cursor: pointer; transition: all 0.3s;">Submit Review</button>
+            </div>
+        `;
+        
+        // Reset review form
+        selectedRating = 0;
+        setTimeout(() => {
+            const reviewTextArea = document.getElementById('review-text');
+            if (reviewTextArea) reviewTextArea.value = '';
+            updateStarDisplay();
+        }, 0);
+    }
 }
 
 function loadSellerProductsPreview(seller) {
@@ -2161,36 +2216,38 @@ function showProductDetail(product) {
     let businessInfoHtml = '';
     if (product.category === 'business') {
         businessInfoHtml = `
-            <div style="margin: 20px 0; padding: 20px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-                <h3 style="margin-bottom: 20px; color: #1a1a1a; border-bottom: 2px solid #00bfa5; padding-bottom: 10px;">📞 Contact Information</h3>
-                <div style="display: grid; gap: 15px;">
-                    <div class="contact-item" style="display: flex; align-items: center; padding: 12px; background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <div style="background: white; padding: 20px; border-radius: 16px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+                <h3 style="margin: 0 0 20px 0; color: #1a1a1a; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                    <span>📞</span> Contact Information
+                </h3>
+                <div style="display: grid; gap: 12px;">
+                    <div class="contact-item" style="display: flex; align-items: center; padding: 15px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 12px; transition: all 0.3s;">
                         <span style="font-size: 24px; margin-right: 12px;">📧</span>
-                        <div>
-                            <div style="font-size: 12px; color: #666; margin-bottom: 4px;">Email</div>
-                            <a href="mailto:${escapeHtml(product.businessEmail)}" style="color: #00bfa5; font-weight: 600; text-decoration: none;">${escapeHtml(product.businessEmail)}</a>
+                        <div style="flex: 1;">
+                            <div style="font-size: 11px; color: #999; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Email</div>
+                            <a href="mailto:${escapeHtml(product.businessEmail)}" style="color: #4facfe; font-weight: 600; text-decoration: none; font-size: 15px;">${escapeHtml(product.businessEmail)}</a>
                         </div>
                     </div>
-                    <div class="contact-item" style="display: flex; align-items: center; padding: 12px; background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                    <div class="contact-item" style="display: flex; align-items: center; padding: 15px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 12px; transition: all 0.3s;">
                         <span style="font-size: 24px; margin-right: 12px;">📱</span>
-                        <div>
-                            <div style="font-size: 12px; color: #666; margin-bottom: 4px;">Phone</div>
-                            <a href="tel:${escapeHtml(product.businessPhone)}" style="color: #00bfa5; font-weight: 600; text-decoration: none;">${escapeHtml(product.businessPhone)}</a>
+                        <div style="flex: 1;">
+                            <div style="font-size: 11px; color: #999; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Phone</div>
+                            <a href="tel:${escapeHtml(product.businessPhone)}" style="color: #4facfe; font-weight: 600; text-decoration: none; font-size: 15px;">${escapeHtml(product.businessPhone)}</a>
                         </div>
                     </div>
-                    <div class="contact-item" style="display: flex; align-items: center; padding: 12px; background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                    <div class="contact-item" style="display: flex; align-items: center; padding: 15px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 12px; transition: all 0.3s;">
                         <span style="font-size: 24px; margin-right: 12px;">📍</span>
-                        <div>
-                            <div style="font-size: 12px; color: #666; margin-bottom: 4px;">Address</div>
-                            <div style="color: #333; font-weight: 500;">${escapeHtml(product.businessAddress)}</div>
+                        <div style="flex: 1;">
+                            <div style="font-size: 11px; color: #999; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Address</div>
+                            <div style="color: #333; font-weight: 500; font-size: 15px;">${escapeHtml(product.businessAddress)}</div>
                         </div>
                     </div>
                     ${product.businessWebsite ? `
-                    <div class="contact-item" style="display: flex; align-items: center; padding: 12px; background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                    <div class="contact-item" style="display: flex; align-items: center; padding: 15px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 12px; transition: all 0.3s;">
                         <span style="font-size: 24px; margin-right: 12px;">🌐</span>
-                        <div>
-                            <div style="font-size: 12px; color: #666; margin-bottom: 4px;">Website</div>
-                            <a href="${escapeHtml(product.businessWebsite)}" target="_blank" style="color: #00bfa5; font-weight: 600; text-decoration: none;">${escapeHtml(product.businessWebsite)}</a>
+                        <div style="flex: 1;">
+                            <div style="font-size: 11px; color: #999; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Website</div>
+                            <a href="${escapeHtml(product.businessWebsite)}" target="_blank" style="color: #4facfe; font-weight: 600; text-decoration: none; font-size: 15px;">${escapeHtml(product.businessWebsite)}</a>
                         </div>
                     </div>
                     ` : ''}
@@ -2202,20 +2259,44 @@ function showProductDetail(product) {
     let locationMapHtml = '';
     if (product.location && product.location.lat && product.location.lng) {
         locationMapHtml = `
-            <div style="margin: 20px 0;">
-                <h4 style="margin-bottom: 10px;">📍 Location on Map</h4>
-                <div id="product-location-map" style="height: 250px; width: 100%; border-radius: 8px; border: 2px solid #e0e0e0;"></div>
+            <div style="background: white; padding: 20px; border-radius: 16px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+                <h3 style="margin: 0 0 15px 0; color: #1a1a1a; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                    <span>📍</span> Location on Map
+                </h3>
+                <div id="product-location-map" style="height: 300px; width: 100%; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></div>
             </div>
         `;
     }
     
     infoDiv.innerHTML = `
-        <div class="product-detail-description">${escapeHtml(product.description)}</div>
-        <div class="product-detail-meta">
-            <span><strong>Category:</strong> ${escapeHtml(product.category)}</span>
-            <span><strong>Posted:</strong> ${postedDate}</span>
-            <span><strong>Views:</strong> 👁️ ${product.views || 0}</span>
+        <!-- Description Card -->
+        <div style="background: white; padding: 20px; border-radius: 16px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+            <h3 style="margin: 0 0 15px 0; color: #1a1a1a; font-size: 18px;">Description</h3>
+            <div class="product-detail-description" style="font-size: 15px; line-height: 1.7; color: #444;">${escapeHtml(product.description)}</div>
         </div>
+        
+        <div id="seller-contact-info"></div>
+        
+        <!-- Quick Info Card -->
+        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 20px; border-radius: 16px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+            <div class="product-detail-meta" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
+                <div style="background: white; padding: 12px 16px; border-radius: 12px; display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 20px;">📅</span>
+                    <div>
+                        <div style="font-size: 11px; color: #999; margin-bottom: 2px;">Posted</div>
+                        <div style="font-size: 14px; font-weight: 600; color: #333;">${postedDate}</div>
+                    </div>
+                </div>
+                <div style="background: white; padding: 12px 16px; border-radius: 12px; display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 20px;">👁️</span>
+                    <div>
+                        <div style="font-size: 11px; color: #999; margin-bottom: 2px;">Views</div>
+                        <div style="font-size: 14px; font-weight: 600; color: #333;">${product.views || 0}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         ${businessInfoHtml}
         ${locationMapHtml}
     `;
@@ -2289,52 +2370,101 @@ function showProductDetail(product) {
             const ratingStars = avgRating > 0 ? '⭐'.repeat(Math.round(avgRating)) : '';
             const ratingText = avgRating > 0 ? `${avgRating} (${reviewCount} reviews)` : 'No reviews';
             
-            let contactHtml = '';
-            if (snapshot.exists()) {
-                const contact = snapshot.val();
-                if (contact.email || contact.phone || contact.location) {
-                    contactHtml = '<div style="margin-top: 15px;">';
-                    if (contact.email) contactHtml += `<div class="contact-item">📧 <a href="mailto:${escapeHtml(contact.email)}">${escapeHtml(contact.email)}</a></div>`;
-                    if (contact.phone) contactHtml += `<div class="contact-item">📱 <a href="tel:${escapeHtml(contact.phone)}">${escapeHtml(contact.phone)}</a></div>`;
-                    if (contact.location) contactHtml += `<div class="contact-item">📍 ${escapeHtml(contact.location)}</div>`;
-                    contactHtml += '</div>';
-                }
-            }
-            
             const sellerDiv = document.getElementById('product-detail-seller');
             
             // Show different info for businesses vs products
             if (product.category === 'business') {
                 sellerDiv.innerHTML = `
-                    <h3>Business Rating</h3>
-                    <div style="padding: 15px; background: #f8f9fa; border-radius: 12px; margin-bottom: 15px;">
-                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                            <span style="font-size: 24px;">⭐</span>
-                            <div>
-                                <div style="font-size: 20px; font-weight: 700; color: #333;">${ratingStars} ${ratingText}</div>
-                                <div style="font-size: 13px; color: #666;">Customer Reviews</div>
+                    <div style="background: white; padding: 20px; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+                        <h3 style="margin: 0 0 20px 0; color: #1a1a1a; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                            <span>⭐</span> Business Rating
+                        </h3>
+                        <div style="padding: 20px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 12px; margin-bottom: 20px;">
+                            <div style="display: flex; align-items: center; gap: 15px;">
+                                <span style="font-size: 48px; line-height: 1;">⭐</span>
+                                <div style="flex: 1;">
+                                    <div style="font-size: 24px; font-weight: 700; color: #333; margin-bottom: 4px;">${ratingStars} ${avgRating > 0 ? avgRating : 'N/A'}</div>
+                                    <div style="font-size: 14px; color: #666;">${reviewCount} ${reviewCount === 1 ? 'Review' : 'Reviews'}</div>
+                                </div>
                             </div>
                         </div>
+                        <button class="btn-primary" onclick="showBusinessReviewModal('${product.id}', '${escapeHtml(product.name)}')" style="width: 100%; padding: 16px; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; font-size: 16px; transition: all 0.3s; box-shadow: 0 4px 12px rgba(79, 172, 254, 0.3);">
+                            ⭐ Write a Review
+                        </button>
                     </div>
-                    <button class="btn-primary" onclick="showBusinessReviewModal('${product.id}', '${escapeHtml(product.name)}')" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
-                        ⭐ Write a Review
-                    </button>
                 `;
             } else {
+                // For regular products, add leave a review button in seller section
                 sellerDiv.innerHTML = `
-                    <h3>Seller Information</h3>
-                    <button class="seller-detail-btn" onclick="showSellerInfo('${escapeHtml(product.seller)}', event)">
-                        <div class="seller-detail-left">
-                            <span class="seller-icon-large">👤</span>
-                            <div>
-                                <div class="seller-name-large">${escapeHtml(product.seller)}</div>
-                                <div class="seller-rating">${ratingStars} ${ratingText}</div>
+                    <div style="background: white; padding: 20px; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+                        <h3 style="margin: 0 0 20px 0; color: #1a1a1a; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                            <span>⭐</span> Seller Rating
+                        </h3>
+                        <div style="padding: 20px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 12px; margin-bottom: 20px;">
+                            <div style="display: flex; align-items: center; gap: 15px;">
+                                <span style="font-size: 48px; line-height: 1;">⭐</span>
+                                <div style="flex: 1;">
+                                    <div style="font-size: 24px; font-weight: 700; color: #333; margin-bottom: 4px;">${ratingStars} ${avgRating > 0 ? avgRating : 'N/A'}</div>
+                                    <div style="font-size: 14px; color: #666;">${reviewCount} ${reviewCount === 1 ? 'Review' : 'Reviews'}</div>
+                                </div>
                             </div>
                         </div>
-                        <div class="seller-detail-arrow">View Profile →</div>
-                    </button>
-                    ${contactHtml}
+                        <button class="btn-primary" onclick="showSellerInfo('${escapeHtml(product.seller)}', event)" style="width: 100%; padding: 16px; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; border: none; border-radius: 12px; font-weight: 600; cursor: pointer; font-size: 16px; transition: all 0.3s; box-shadow: 0 4px 12px rgba(79, 172, 254, 0.3);">
+                            ⭐ Leave a Review
+                        </button>
+                    </div>
                 `;
+                
+                // Add contact info after description
+                const contactInfoDiv = document.getElementById('seller-contact-info');
+                if (snapshot.exists()) {
+                    const contact = snapshot.val();
+                    if (contact.email || contact.phone || contact.location) {
+                        let contactHtml = `
+                            <div style="background: white; padding: 20px; border-radius: 16px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+                                <h3 style="margin: 0 0 20px 0; color: #1a1a1a; font-size: 18px;">Contact Information</h3>
+                                <div style="display: grid; gap: 12px;">`;
+                        
+                        if (contact.email) {
+                            contactHtml += `
+                                <div style="display: flex; align-items: center; padding: 15px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 12px;">
+                                    <span style="font-size: 24px; margin-right: 12px;">📧</span>
+                                    <div style="flex: 1;">
+                                        <div style="font-size: 11px; color: #999; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Email</div>
+                                        <a href="mailto:${escapeHtml(contact.email)}" style="color: #4facfe; font-weight: 600; text-decoration: none; font-size: 15px;">${escapeHtml(contact.email)}</a>
+                                    </div>
+                                </div>`;
+                        }
+                        
+                        if (contact.phone) {
+                            contactHtml += `
+                                <div style="display: flex; align-items: center; padding: 15px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 12px;">
+                                    <span style="font-size: 24px; margin-right: 12px;">📱</span>
+                                    <div style="flex: 1;">
+                                        <div style="font-size: 11px; color: #999; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Phone</div>
+                                        <a href="tel:${escapeHtml(contact.phone)}" style="color: #4facfe; font-weight: 600; text-decoration: none; font-size: 15px;">${escapeHtml(contact.phone)}</a>
+                                    </div>
+                                </div>`;
+                        }
+                        
+                        if (contact.location) {
+                            contactHtml += `
+                                <div style="display: flex; align-items: center; padding: 15px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 12px;">
+                                    <span style="font-size: 24px; margin-right: 12px;">📍</span>
+                                    <div style="flex: 1;">
+                                        <div style="font-size: 11px; color: #999; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Location</div>
+                                        <div style="color: #333; font-weight: 500; font-size: 15px;">${escapeHtml(contact.location)}</div>
+                                    </div>
+                                </div>`;
+                        }
+                        
+                        contactHtml += `
+                                </div>
+                            </div>`;
+                        
+                        contactInfoDiv.innerHTML = contactHtml;
+                    }
+                }
             }
         });
     });
