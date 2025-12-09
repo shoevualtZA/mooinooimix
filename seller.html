@@ -233,6 +233,17 @@
             </div>
         </div>
 
+        <!-- Image Fullscreen Viewer -->
+        <div id="image-fullscreen-viewer" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 2000; overflow: hidden;">
+            <button onclick="closeImageViewer()" style="position: absolute; top: 20px; right: 20px; background: rgba(255,255,255,0.2); border: none; color: white; font-size: 36px; width: 50px; height: 50px; border-radius: 50%; cursor: pointer; z-index: 2001; backdrop-filter: blur(10px);">&times;</button>
+            <div id="image-viewer-container" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;">
+                <img id="fullscreen-image" style="max-width: 90%; max-height: 90%; object-fit: contain; cursor: move; user-select: none;" draggable="false">
+                <div id="magnify-circle" style="display: none; position: absolute; width: 150px; height: 150px; border: 3px solid rgba(79, 172, 254, 0.8); border-radius: 50%; pointer-events: none; overflow: hidden; box-shadow: 0 0 20px rgba(79, 172, 254, 0.5); backdrop-filter: blur(0px);">
+                    <div id="magnify-content" style="position: absolute; transform-origin: top left;"></div>
+                </div>
+            </div>
+        </div>
+
         <!-- Product Detail Modal -->
         <div id="product-detail-modal" class="modal">
             <div class="modal-content">

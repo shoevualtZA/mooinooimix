@@ -2468,7 +2468,7 @@ function showProductDetail(product) {
     const imagesDiv = document.getElementById('product-detail-images');
     if (product.category === 'business' && product.logo) {
         imagesDiv.innerHTML = `<div class="business-logo-container">
-            <img src="${escapeHtml(product.logo)}" alt="Business logo" class="business-logo" onclick="window.open('${escapeHtml(product.logo)}', '_blank')">
+            <img src="${escapeHtml(product.logo)}" alt="Business logo" class="business-logo" onclick="openImageViewer('${escapeHtml(product.logo)}')">
         </div>`;
     } else if (product.images && product.images.length > 0) {
         imagesDiv.innerHTML = '';
@@ -2477,7 +2477,7 @@ function showProductDetail(product) {
             img.src = imageUrl;
             img.className = 'product-detail-image';
             img.alt = product.name;
-            img.onclick = () => window.open(imageUrl, '_blank');
+            img.onclick = () => openImageViewer(imageUrl);
             imagesDiv.appendChild(img);
         });
     } else {
@@ -2719,6 +2719,132 @@ function showBusinessDetail(businessId) {
 
 function closeProductDetail() {
     document.getElementById('product-detail-modal').classList.remove('active');
+}
+
+function openImageViewer(imageUrl) {
+    const viewer = document.getElementById('image-fullscreen-viewer');
+    const img = document.getElementById('fullscreen-image');
+    const magnifyCircle = document.getElementById('magnify-circle');
+    const magnifyContent = document.getElementById('magnify-content');
+    
+    img.src = imageUrl;
+    viewer.style.display = 'block';
+    
+    // Enable hardware acceleration
+    magnifyCircle.style.transform = 'translateZ(0)';
+    magnifyCircle.style.willChange = 'transform';
+    
+    let isDragging = false;
+    let animationFrame = null;
+    const magnifyZoom = 2.5;
+    
+    // Preload background image for smoother performance
+    magnifyContent.style.backgroundImage = `url('${imageUrl}')`;
+    magnifyContent.style.backgroundRepeat = 'no-repeat';
+    
+    // Touch events for mobile with RAF throttling
+    img.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+            isDragging = true;
+            magnifyCircle.style.display = 'block';
+            updateMagnifier(e.touches[0]);
+        }
+    }, { passive: false });
+    
+    img.addEventListener('touchmove', (e) => {
+        if (isDragging && e.touches.length === 1) {
+            e.preventDefault();
+            
+            // Cancel previous frame if still pending
+            if (animationFrame) {
+                cancelAnimationFrame(animationFrame);
+            }
+            
+            // Schedule update on next frame
+            animationFrame = requestAnimationFrame(() => {
+                updateMagnifier(e.touches[0]);
+            });
+        }
+    }, { passive: false });
+    
+    img.addEventListener('touchend', () => {
+        isDragging = false;
+        magnifyCircle.style.display = 'none';
+        if (animationFrame) {
+            cancelAnimationFrame(animationFrame);
+            animationFrame = null;
+        }
+    });
+    
+    // Mouse events for desktop
+    img.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        magnifyCircle.style.display = 'block';
+        updateMagnifier(e);
+    });
+    
+    img.addEventListener('mousemove', (e) => {
+        if (isDragging) {
+            if (animationFrame) {
+                cancelAnimationFrame(animationFrame);
+            }
+            animationFrame = requestAnimationFrame(() => {
+                updateMagnifier(e);
+            });
+        }
+    });
+    
+    img.addEventListener('mouseup', () => {
+        isDragging = false;
+        magnifyCircle.style.display = 'none';
+        if (animationFrame) {
+            cancelAnimationFrame(animationFrame);
+            animationFrame = null;
+        }
+    });
+    
+    img.addEventListener('mouseleave', () => {
+        isDragging = false;
+        magnifyCircle.style.display = 'none';
+        if (animationFrame) {
+            cancelAnimationFrame(animationFrame);
+            animationFrame = null;
+        }
+    });
+    
+    function updateMagnifier(pointer) {
+        const rect = img.getBoundingClientRect();
+        const x = (pointer.clientX !== undefined ? pointer.clientX : pointer.pageX);
+        const y = (pointer.clientY !== undefined ? pointer.clientY : pointer.pageY);
+        
+        // Position magnify circle centered on touch/cursor using transform for better performance
+        const circleRadius = 75; // Half of 150px circle
+        const circleX = x - circleRadius;
+        const circleY = y - circleRadius;
+        magnifyCircle.style.left = '0';
+        magnifyCircle.style.top = '0';
+        magnifyCircle.style.transform = `translate(${circleX}px, ${circleY}px) translateZ(0)`;
+        
+        // Calculate position in image relative to image bounds
+        const imgX = x - rect.left;
+        const imgY = y - rect.top;
+        
+        // Update magnified content - center the magnification on the exact touch point
+        const bgPosX = -imgX * magnifyZoom + circleRadius;
+        const bgPosY = -imgY * magnifyZoom + circleRadius;
+        
+        magnifyContent.style.backgroundSize = `${rect.width * magnifyZoom}px ${rect.height * magnifyZoom}px`;
+        magnifyContent.style.backgroundPosition = `${bgPosX}px ${bgPosY}px`;
+        magnifyContent.style.width = '150px';
+        magnifyContent.style.height = '150px';
+    }
+}
+
+function closeImageViewer() {
+    const viewer = document.getElementById('image-fullscreen-viewer');
+    const magnifyCircle = document.getElementById('magnify-circle');
+    viewer.style.display = 'none';
+    magnifyCircle.style.display = 'none';
 }
 
 let directionsMap = null;

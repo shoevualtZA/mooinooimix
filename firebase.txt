@@ -1,0 +1,29 @@
+Webapp SDK
+
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyDnS8IKALBmIQS45ODf_gOySUu6V1LignQ",
+  authDomain: "mooinooimix.firebaseapp.com",
+  projectId: "mooinooimix",
+  storageBucket: "mooinooimix.firebasestorage.app",
+  messagingSenderId: "679634436414",
+  appId: "1:679634436414:web:bca112802c12a01f326c6f",
+  measurementId: "G-RL1J7GT8KK"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+
+
+DATABASE URL
+
+
+https://mooinooimix-default-rtdb.firebaseio.com/
